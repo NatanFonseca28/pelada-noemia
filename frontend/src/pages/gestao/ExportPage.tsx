@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ApiError, api, downloadFile } from '@/api/client'
-import { Alert, Button, Card, PageHeader, Spinner } from '@/components/ui'
+import { Download } from 'lucide-react'
+import { Alert, Button, Card, ICON_STROKE, PageHeader, Spinner, cx } from '@/components/ui'
 
 interface ExportTable {
   name: string
   label: string
 }
+
+type Format = 'xlsx' | 'csv'
+const FORMATS: { value: Format; title: string; text: string }[] = [
+  { value: 'xlsx', title: 'Planilha (.xlsx)', text: 'Uma aba por tabela, para abrir no Excel' },
+  { value: 'csv', title: 'CSV (.zip)', text: 'Valores exatos, com manifesto e SHA-256 para conferência' },
+]
 
 export function ExportPage() {
   const { data: tables, isLoading } = useQuery({
@@ -16,6 +23,7 @@ export function ExportPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [format, setFormat] = useState<Format>('xlsx')
 
   useEffect(() => {
     if (tables) setSelected(new Set(tables.map((t) => t.name)))
@@ -34,7 +42,7 @@ export function ExportPage() {
     setLoading(true)
     try {
       const params = allSelected ? '' : '?' + [...selected].map((t) => `tables=${encodeURIComponent(t)}`).join('&')
-      await downloadFile(`/export/xlsx${params}`, 'pelada-export.xlsx')
+      await downloadFile(`/export/${format}${params}`, `pelada-export.${format === 'csv' ? 'zip' : 'xlsx'}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erro ao exportar')
     } finally {
@@ -68,8 +76,25 @@ export function ExportPage() {
               </label>
             ))}
           </div>
+          <fieldset className="mt-5 border-t border-line pt-4">
+            <legend className="mb-2 text-sm font-medium">Formato</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FORMATS.map((f) => (
+                <label
+                  key={f.value}
+                  className={cx('press flex min-h-[56px] cursor-pointer items-start gap-2 rounded-btn border p-3 text-sm', format === f.value ? 'border-primary bg-primary/10' : 'border-line hover:bg-soft')}
+                >
+                  <input type="radio" name="formato" className="mt-0.5 accent-primary" checked={format === f.value} onChange={() => setFormat(f.value)} />
+                  <span>
+                    <span className="block font-medium">{f.title}</span>
+                    <span className="block text-xs text-muted">{f.text}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <Button className="mt-4 w-full sm:w-auto" onClick={onExport} loading={loading} disabled={!selected.size}>
-            ⬇ Baixar .xlsx
+            <Download size={18} strokeWidth={ICON_STROKE} aria-hidden /> Baixar {format === 'csv' ? '.zip' : '.xlsx'}
           </Button>
         </Card>
       )}
