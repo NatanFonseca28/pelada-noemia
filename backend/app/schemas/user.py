@@ -17,6 +17,13 @@ class UserOut(ORMModel):
     approved_at: datetime | None
     created_at: datetime
     must_change_password: bool = False
+    is_superadmin: bool = False
+
+
+class MeOut(UserOut):
+    """Usuário logado + páginas ocultas para a categoria dele (vazio para o superadmin)."""
+
+    hidden_pages: list[str] = []
 
 
 class UserCreate(BaseModel):

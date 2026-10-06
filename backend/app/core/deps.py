@@ -59,4 +59,13 @@ def require_roles(*roles: UserRole) -> Callable:
 
 
 AdminUser = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
+
+
+async def require_superadmin(user: CurrentUser) -> User:
+    if not (user.is_superadmin and user.role == UserRole.ADMIN):
+        raise ForbiddenError("Restrito ao superadmin")
+    return user
+
+
+SuperAdminUser = Annotated[User, Depends(require_superadmin)]
 StaffUser = Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.MESARIO))]

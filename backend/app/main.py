@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.ratelimit import limiter, rate_limit_handler
 from app.core.security_log import configure_logging
-from app.routers import audit, auth, dashboard, export, finance, media, players, rounds, settings, stats, tournaments, users
+from app.routers import access, audit, auth, dashboard, export, finance, media, players, rounds, settings, stats, tournaments, users
 
 app_settings = get_settings()  # em produção, falha aqui se a configuração for insegura
 configure_logging(json_logs=app_settings.is_production)
@@ -81,7 +81,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 
 api = APIRouter(prefix="/api")
-for module in (auth, users, players, rounds, tournaments, stats, settings, finance, dashboard, export, audit, media):
+for module in (auth, users, players, rounds, tournaments, stats, settings, finance, dashboard, export, audit, access, media):
     api.include_router(module.router)
 
 

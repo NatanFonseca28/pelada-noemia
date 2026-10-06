@@ -76,7 +76,7 @@ async def test_importar_arquivo_invalido(client, admin_headers):
     assert r.status_code == 422
 
 
-async def test_editar_mensalidade_lancamento_e_cobranca(client, admin_headers):
+async def test_editar_mensalidade_lancamento_e_cobranca(client, admin_headers, superadmin_headers):
     pid = (await client.post("/api/players", json={"name": "Natan", "type": "MENSALISTA",
                                                     "primary_position": "ALA"}, headers=admin_headers)).json()["id"]
     cfg = {"monthly_fee": "50", "finance_opening_balance": "1000", "finance_opening_month": "2026-10-15"}
@@ -114,5 +114,5 @@ async def test_editar_mensalidade_lancamento_e_cobranca(client, admin_headers):
                               headers=admin_headers)).json()
     assert col["items"][0]["paid"] is True
 
-    logs = (await client.get("/api/audit", params={"entity": "monthly_fee"}, headers=admin_headers)).json()
+    logs = (await client.get("/api/audit", params={"entity": "monthly_fee"}, headers=superadmin_headers)).json()
     assert len(logs) == 3

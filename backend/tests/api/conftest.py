@@ -45,10 +45,11 @@ async def client(session_factory) -> AsyncIterator[AsyncClient]:
         yield c
 
 
-async def _make_user(factory, email: str, role: UserRole, status=UserStatus.ATIVO, password="senha123") -> User:
+async def _make_user(factory, email: str, role: UserRole, status=UserStatus.ATIVO, password="senha123",
+                     superadmin: bool = False) -> User:
     async with factory() as s:
         user = User(email=email, name=email.split("@")[0].title(), password_hash=hash_password(password),
-                    role=role, status=status)
+                    role=role, status=status, is_superadmin=superadmin)
         s.add(user)
         await s.commit()
         return user
@@ -64,6 +65,12 @@ async def _login(client: AsyncClient, email: str, password="senha123") -> dict:
 async def admin_headers(client, session_factory) -> dict:
     await _make_user(session_factory, "admin@test.com", UserRole.ADMIN)
     return await _login(client, "admin@test.com")
+
+
+@pytest.fixture
+async def superadmin_headers(client, session_factory) -> dict:
+    await _make_user(session_factory, "super@test.com", UserRole.ADMIN, superadmin=True)
+    return await _login(client, "super@test.com")
 
 
 @pytest.fixture

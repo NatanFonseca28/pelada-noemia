@@ -29,6 +29,9 @@ class User(TimestampMixin, Base):
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Superadmin: define a visibilidade das páginas e é o único que vê auditoria, log de acesso e design system.
+    # Não há rota que conceda ou retire: só por migration/banco.
+    is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     player: Mapped["Player | None"] = relationship(lazy="joined")  # noqa: F821
 

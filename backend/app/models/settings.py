@@ -51,3 +51,5 @@ class PeladaSettings(TimestampMixin, Base):
     monthly_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("50.00"))
     finance_opening_balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     finance_opening_month: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Páginas ocultas por categoria (definidas pelo superadmin): {"JOGADOR": ["/estatisticas"], ...}
+    hidden_pages: Mapped[dict[str, list[str]]] = mapped_column(JSONB, default=dict, server_default="{}")

@@ -1,5 +1,6 @@
 """Importa todos os models para que o metadata (Alembic/testes) os enxergue."""
 
+from app.models.access_log import AccessLog
 from app.models.audit import AuditLog
 from app.models.match_event import EventType, MatchEvent
 from app.models.media import MediaFile
@@ -11,6 +12,7 @@ from app.models.tournament import Match, Tournament, TournamentGroup, Tournament
 from app.models.user import RefreshToken, User
 
 __all__ = [
+    "AccessLog",
     "Attendance",
     "AuditLog",
     "CashEntry",

@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.core.passwords import StrongPassword
 
-from app.schemas.user import UserOut
+from app.schemas.user import MeOut
 
 
 class LoginIn(BaseModel):
@@ -19,7 +19,7 @@ class RegisterIn(BaseModel):
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: UserOut
+    user: MeOut
 
 
 class ChangePasswordIn(BaseModel):

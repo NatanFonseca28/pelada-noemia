@@ -24,7 +24,7 @@ async def test_rbac_rotas_de_gestao(client, jogador_headers, mesario_headers):
     assert (await client.get("/api/players")).status_code == 401
 
 
-async def test_crud_jogador_com_auditoria(client, admin_headers):
+async def test_crud_jogador_com_auditoria(client, admin_headers, superadmin_headers):
     r = await client.post("/api/players", json=PLAYER, headers=admin_headers)
     assert r.status_code == 201, r.text
     pid = r.json()["id"]
@@ -37,7 +37,7 @@ async def test_crud_jogador_com_auditoria(client, admin_headers):
     r = await client.get("/api/players", params={"active": True}, headers=admin_headers)
     assert r.json() == []
 
-    logs = (await client.get("/api/audit", params={"entity": "player"}, headers=admin_headers)).json()
+    logs = (await client.get("/api/audit", params={"entity": "player"}, headers=superadmin_headers)).json()
     update = next(log for log in logs if log["action"] == "UPDATE")
     assert update["before"]["skill_level"] == 3
     assert update["after"]["skill_level"] == 5

@@ -1,12 +1,15 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.deps import CurrentUser, SessionDep
 from app.core.ratelimit import LOGIN_LIMIT, PASSWORD_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
+from app.models.user import User
 from app.schemas.auth import ChangePasswordIn, LoginIn, RegisterIn, TokenOut
-from app.schemas.user import UserOut
+from app.schemas.user import MeOut, UserOut
+from app.services.access_service import hidden_pages_for
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
@@ -37,10 +40,10 @@ async def register(request: Request, data: RegisterIn, session: SessionDep):
 @router.post("/login", response_model=TokenOut)
 @limiter.limit(LOGIN_LIMIT)
 async def login(request: Request, data: LoginIn, response: Response, session: SessionDep):
-    ip = request.client.host if request.client else None
-    user, access, refresh = await AuthService(session).login(data.email, data.password, ip=ip)
+    user, access, refresh = await AuthService(session).login(data.email, data.password, ip=_ip(request),
+                                                             user_agent=request.headers.get("user-agent"))
     _set_refresh_cookie(response, refresh)
-    return TokenOut(access_token=access, user=UserOut.model_validate(user))
+    return TokenOut(access_token=access, user=await _me(session, user))
 
 
 @router.post("/refresh", response_model=TokenOut)
@@ -48,18 +51,26 @@ async def login(request: Request, data: LoginIn, response: Response, session: Se
 async def refresh(request: Request, response: Response, session: SessionDep, refresh_token: RefreshCookie = None):
     user, access, new_refresh = await AuthService(session).refresh(refresh_token)
     _set_refresh_cookie(response, new_refresh)
-    return TokenOut(access_token=access, user=UserOut.model_validate(user))
+    return TokenOut(access_token=access, user=await _me(session, user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response, session: SessionDep, refresh_token: RefreshCookie = None):
-    await AuthService(session).logout(refresh_token)
+async def logout(request: Request, response: Response, session: SessionDep, refresh_token: RefreshCookie = None):
+    await AuthService(session).logout(refresh_token, ip=_ip(request), user_agent=request.headers.get("user-agent"))
     response.delete_cookie(settings.refresh_cookie_name, path="/api/auth")
 
 
-@router.get("/me", response_model=UserOut)
-async def me(user: CurrentUser):
-    return user
+@router.get("/me", response_model=MeOut)
+async def me(user: CurrentUser, session: SessionDep):
+    return await _me(session, user)
+
+
+def _ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+async def _me(session: AsyncSession, user: User) -> MeOut:
+    return MeOut.model_validate(user).model_copy(update={"hidden_pages": await hidden_pages_for(session, user)})
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

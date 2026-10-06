@@ -18,6 +18,10 @@ export interface User {
   created_at: string
   /** senha definida/redefinida pelo admin: precisa trocar antes de usar o sistema */
   must_change_password?: boolean
+  /** define a visibilidade das páginas; único que vê auditoria, log de acessos e design system */
+  is_superadmin?: boolean
+  /** páginas ocultas para a categoria do usuário logado (só em /auth/me e no login) */
+  hidden_pages?: string[]
 }
 
 export interface TokenResponse {
@@ -483,4 +487,23 @@ export interface Dashboard {
     monthly_without_consent: number
     locked_accounts: number
   }
+}
+
+// ---------- Superadmin ----------
+export interface PageVisibility {
+  pages: { path: string; label: string }[]
+  hidden: Record<UserRole, string[]>
+}
+
+export type AccessEvent = 'LOGIN' | 'LOGIN_FALHOU' | 'BLOQUEADO' | 'CONTA_BLOQUEADA' | 'LOGOUT'
+
+export interface AccessLogEntry {
+  id: number
+  user_id: number | null
+  user_name: string | null
+  email: string
+  event: AccessEvent
+  ip: string | null
+  user_agent: string | null
+  created_at: string
 }

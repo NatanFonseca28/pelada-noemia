@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.core.security_log import security_event
 from app.core.security import hash_password
 from app.models.enums import UserRole, UserStatus
@@ -58,6 +58,8 @@ class UserService:
     async def update(self, user_id: int, data: UserUpdate, actor: User) -> User:
         user = await self.get(user_id)
         before = audit_service.snapshot(user)
+        if user.is_superadmin and not actor.is_superadmin:
+            raise ForbiddenError("Só o superadmin pode alterar a conta do superadmin")
         if user.id == actor.id and (
             (data.role and data.role != UserRole.ADMIN) or (data.status and data.status != UserStatus.ATIVO)
         ):
