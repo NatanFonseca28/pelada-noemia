@@ -2,6 +2,14 @@
 
 Passo a passo para colocar a Pelada no ar sem servidor próprio, usando os planos gratuitos.
 
+> **Publicado em 2026-10-06:**
+> - site: <https://pelada-noemia.vercel.app>
+> - API: <https://pelada-api-9vwk.onrender.com>
+> - banco: projeto Neon `pelada-noemia`
+>
+> Os dados foram carregados com `COPIA_IDENTICA=sim`: cópia fiel da homologação, inclusive as contas de teste e as
+> senhas. Sem essa opção, o script leva só contas reais e exige senha nova.
+
 ```
 navegador ──► Vercel (site)  ──/api/*──►  Render (API FastAPI)  ──►  Neon (Postgres)
               pelada-noemia.vercel.app     pelada-api.onrender.com      ep-….neon.tech
@@ -148,19 +156,11 @@ Tempo total: uns 40 minutos. Siga na ordem, porque cada etapa usa um valor da an
 
 ---
 
-## 4. Manter a API acordada (recomendado)
+## 4. Manter a API acordada
 
 O plano gratuito do Render **desliga a API depois de 15 minutos sem acesso**, e a primeira visita depois disso leva até
-1 minuto. Nesse meio-tempo o site pode mostrar erro. Para evitar isso, use um serviço gratuito que chama a API a cada
-10 minutos:
-
-1. Crie uma conta em <https://cron-job.org>.
-2. Clique em **Create cronjob** e preencha:
-   - **URL:** `https://pelada-api.onrender.com/api/health`
-   - **Execution schedule:** a cada **10 minutos**
-3. Salve.
-
-O plano gratuito do Render dá 750 horas por mês, suficiente para um serviço ligado o mês inteiro.
+1 minuto. O workflow `.github/workflows/manter-api-acordada.yml` chama `/api/health` a cada 10 minutos pelo GitHub
+Actions, que é gratuito em repositório público. Se você trocar o endereço do Render, atualize a URL nesse arquivo.
 
 ---
 
