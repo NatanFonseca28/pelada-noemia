@@ -28,3 +28,5 @@ deploy/seed/*.sql
 # Backups locais do banco (dados reais)
 backups/
 *.dump
+# Pacote original dos ícones (já extraído em public/)
+frontend/public/favicon_io.zip

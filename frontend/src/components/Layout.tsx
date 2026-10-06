@@ -80,15 +80,11 @@ function isActive(item: NavItem, path: string) {
   return item.end ? path === item.to : path === item.to || path.startsWith(item.to + '/')
 }
 
-/** Marca: escudo verde com bola + nome em Barlow. */
+/** Marca: escudo Noemia Cup + nome em Barlow. */
 function Brand() {
   return (
     <span className="flex items-center gap-2">
-      <svg width="26" height="28" viewBox="0 0 40 44" aria-hidden className="shrink-0">
-        <path d="M20 2 L37 8 V22 C37 32 29.5 39 20 42 C10.5 39 3 32 3 22 V8 Z" fill="rgb(var(--primary))" />
-        <circle cx="20" cy="21" r="8" fill="none" stroke="rgb(var(--on-primary))" strokeWidth="2.5" />
-        <path d="M20 13 v16 M12 21 h16" stroke="rgb(var(--on-primary))" strokeWidth="1.5" opacity="0.6" />
-      </svg>
+      <img src="/logo-96.webp" width={36} height={36} alt="" aria-hidden className="shrink-0" />
       <span className="font-display text-xl font-bold leading-none tracking-wide">Pelada de Quarta</span>
     </span>
   )

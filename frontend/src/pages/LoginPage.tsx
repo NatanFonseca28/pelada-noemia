@@ -9,7 +9,7 @@ export function AuthShell({ title, children }: { title: string; children: React.
     <div className="grid min-h-screen place-items-center bg-bg p-4">
       <Card className="anim-page w-full max-w-sm overflow-hidden">
         <div className="pitch-lines border-b border-line px-6 pb-5 pt-6 text-center">
-          <div className="text-4xl" aria-hidden>⚽</div>
+          <img src="/logo-192.webp" width={96} height={96} alt="Noemia Cup" className="mx-auto" />
           <h1 className="mt-2 text-xl font-bold">{title}</h1>
           <p className="text-sm text-muted">Pelada de Quarta</p>
         </div>
