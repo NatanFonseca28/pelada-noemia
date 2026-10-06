@@ -1,6 +1,6 @@
 # Produção — Pelada de Quarta
 
-> Hospedagem gerenciada (Vercel + Koyeb + Neon), sem servidor próprio: veja [PUBLICAR-KOYEB-NEON-VERCEL.md](PUBLICAR-KOYEB-NEON-VERCEL.md).
+> Hospedagem gerenciada (Vercel + Render + Neon), sem servidor próprio: veja [PUBLICAR-RENDER-NEON-VERCEL.md](PUBLICAR-RENDER-NEON-VERCEL.md).
 Este guia cobre a opção com VPS própria (Docker Compose + Caddy).
 
 Guia para colocar o sistema no ar com segurança. O ambiente de produção (`docker-compose.prod.yml`) é **separado** do

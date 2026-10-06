@@ -52,5 +52,5 @@ def test_url_do_neon_vira_asyncpg():
 def test_producao_recusa_endpoint_pooler_do_neon():
     with pytest.raises(InsecureConfigError, match="pooler"):
         Settings(environment="production", jwt_secret="x" * 40, cookie_secure=True,
-                 cors_origins="https://pelada.vercel.app", allowed_hosts="pelada.koyeb.app",
+                 cors_origins="https://pelada.vercel.app", allowed_hosts="pelada-api.onrender.com",
                  database_url="postgresql://app:Senha-Forte-123@ep-x-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require")

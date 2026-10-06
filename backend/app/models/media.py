@@ -8,7 +8,7 @@ from app.db.base import Base
 
 class MediaFile(Base):
     """Arquivo enviado (hoje só fotos de jogador, já sanitizadas em WEBP). Fica no banco para sobreviver a
-    deploys em plataformas com disco efêmero (Koyeb) e entrar nos backups junto com os dados."""
+    deploys em plataformas com disco efêmero (Render) e entrar nos backups junto com os dados."""
 
     __tablename__ = "media_files"
 

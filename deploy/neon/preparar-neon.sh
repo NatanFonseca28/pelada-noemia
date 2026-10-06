@@ -64,7 +64,7 @@ fi
 
 APP_URL=$(printf '%s' "$NEON_OWNER_URL" | sed -E "s#^([a-z+]+://)[^@]+@#\1${APP_DB_USER}:${APP_DB_PASSWORD}@#")
 echo
-echo ">> Pronto. Use no Koyeb:"
+echo ">> Pronto. Use no Render:"
 echo "   DATABASE_URL            = $APP_URL"
 echo "   MIGRATIONS_DATABASE_URL = (a NEON_OWNER_URL que você usou aqui)"
 [ "$SEED" = "sim" ] && echo ">> Agora apague o arquivo com dados pessoais:  shred -u $SEED_FILE"

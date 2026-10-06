@@ -5,7 +5,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://SUBSTITUA-PELO-DOMINIO-DO-KOYEB/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://SUBSTITUA-PELO-DOMINIO-DO-RENDER/api/:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
