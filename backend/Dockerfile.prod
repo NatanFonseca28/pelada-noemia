@@ -20,6 +20,7 @@ RUN mkdir -p /app/media && chown app:app /app/media
 
 USER app
 EXPOSE 8000
-# Migrations com o usuário dono do schema; a API roda com o usuário de privilégio mínimo (ver docker-compose.prod.yml).
-# --proxy-headers: o IP real do cliente vem do Caddy (a porta da API não é publicada, só o Caddy a alcança).
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*' --no-server-header"]
+# Migrations com o usuário dono do schema; a API roda com o usuário de privilégio mínimo (MIGRATIONS_DATABASE_URL).
+# --proxy-headers: o IP real do cliente vem do proxy da frente (Caddy, ou Vercel + Koyeb).
+# PORT/WEB_CONCURRENCY: definidos pela plataforma quando houver (Koyeb); padrão 8000 e 2 workers.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_CONCURRENCY:-2} --proxy-headers --forwarded-allow-ips='*' --no-server-header"]

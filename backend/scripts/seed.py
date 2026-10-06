@@ -58,7 +58,7 @@ PLAYERS: list[tuple[str, str | None, Position, Position | None, int | None]] = [
 ]
 
 
-async def seed(demo: bool) -> None:
+async def seed(demo: bool, admin_only: bool = False) -> None:
     settings = get_settings()
     rng = random.Random(42)
     async with SessionLocal() as session:
@@ -92,6 +92,8 @@ async def seed(demo: bool) -> None:
             ("rafa@pelada.app", "Rafael Gomes", "jogador123", UserRole.JOGADOR, "Rafael Gomes", UserStatus.ATIVO),
             ("novato@pelada.app", "Novato Pendente", "jogador123", UserRole.JOGADOR, None, UserStatus.PENDENTE),
         ]
+        if admin_only:  # produção com banco vazio: nada de contas de teste
+            users = users[:1]
         for email, name, password, role, player_name, status in users:
             if await session.scalar(select(User).where(User.email == email)):
                 continue
@@ -112,4 +114,4 @@ async def seed(demo: bool) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed(demo="--demo" in sys.argv))
+    asyncio.run(seed(demo="--demo" in sys.argv, admin_only="--admin-only" in sys.argv))

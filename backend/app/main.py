@@ -1,19 +1,15 @@
-import mimetypes
-from pathlib import Path
-
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.ratelimit import limiter, rate_limit_handler
 from app.core.security_log import configure_logging
-from app.routers import audit, auth, dashboard, export, finance, players, rounds, settings, stats, tournaments, users
+from app.routers import audit, auth, dashboard, export, finance, media, players, rounds, settings, stats, tournaments, users
 
 app_settings = get_settings()  # em produção, falha aqui se a configuração for insegura
 configure_logging(json_logs=app_settings.is_production)
@@ -85,7 +81,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 
 api = APIRouter(prefix="/api")
-for module in (auth, users, players, rounds, tournaments, stats, settings, finance, dashboard, export, audit):
+for module in (auth, users, players, rounds, tournaments, stats, settings, finance, dashboard, export, audit, media):
     api.include_router(module.router)
 
 
@@ -95,10 +91,3 @@ async def health() -> dict:
 
 
 app.include_router(api)
-
-# Imagens slim do Python não têm /etc/mime.types: registra o WEBP (fotos são regravadas nesse formato)
-mimetypes.add_type("image/webp", ".webp")
-
-media_dir = Path(app_settings.media_dir)
-media_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/api/media", StaticFiles(directory=media_dir), name="media")

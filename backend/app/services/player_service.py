@@ -69,6 +69,7 @@ class PlayerService:
             self.session, user_id=actor.id, action="DELETE", entity="player", entity_id=player_id,
             before=before,
         )
+        await storage.delete_file(self.session, photo)
         try:
             await self.session.commit()
         except IntegrityError as exc:
@@ -76,18 +77,17 @@ class PlayerService:
             raise ConflictError(
                 "Jogador possui histórico e não pode ser excluído; marque-o como inativo"
             ) from exc
-        storage.delete_file(photo)
 
     async def set_photo(self, player_id: int, content: bytes, actor: User) -> Player:
         player = await self.get(player_id)
         old = player.photo_path
-        player.photo_path = storage.save_photo(content)
+        player.photo_path = storage.save_photo(self.session, content)
+        await storage.delete_file(self.session, old)
         await audit_service.record(
             self.session, user_id=actor.id, action="UPDATE_PHOTO", entity="player", entity_id=player.id,
             before={"photo_path": old}, after={"photo_path": player.photo_path},
         )
         await self.session.commit()
-        storage.delete_file(old)
         await self.session.refresh(player)
         return player
 
@@ -99,7 +99,7 @@ class PlayerService:
             self.session, user_id=actor.id, action="REMOVE_PHOTO", entity="player", entity_id=player.id,
             before={"photo_path": old},
         )
+        await storage.delete_file(self.session, old)
         await self.session.commit()
-        storage.delete_file(old)
         await self.session.refresh(player)
         return player

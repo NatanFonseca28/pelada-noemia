@@ -2,13 +2,14 @@
 e é regravada como WEBP: isso descarta metadados (EXIF/GPS) e qualquer conteúdo embutido no arquivo original."""
 import uuid
 from io import BytesIO
-from pathlib import Path
 
 from fastapi import UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.errors import ValidationError
+from app.models.media import MediaFile
 
 ACCEPTED_FORMATS = {"JPEG", "PNG", "WEBP"}
 MAX_SIDE = 1024  # px: fotos de perfil não precisam de mais
@@ -45,15 +46,14 @@ def sanitize_image(content: bytes) -> bytes:
         raise ValidationError("Arquivo não é uma imagem válida (use JPG, PNG ou WEBP)") from exc
 
 
-def save_photo(content: bytes, folder: str = "players") -> str:
-    """Grava a imagem já sanitizada em MEDIA_DIR/<folder>/ e retorna o caminho relativo."""
+def save_photo(session: AsyncSession, content: bytes, folder: str = "players") -> str:
+    """Sanitiza e guarda a imagem no banco (vai junto no commit de quem chamou); retorna o caminho relativo."""
     relative = f"{folder}/{uuid.uuid4().hex}.webp"
-    target = Path(get_settings().media_dir) / relative
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(sanitize_image(content))
+    session.add(MediaFile(path=relative, content_type="image/webp", content=sanitize_image(content)))
     return relative
 
 
-def delete_file(relative: str | None) -> None:
+async def delete_file(session: AsyncSession, relative: str | None) -> None:
+    """Remove o arquivo (vai junto no commit de quem chamou)."""
     if relative:
-        (Path(get_settings().media_dir) / relative).unlink(missing_ok=True)
+        await session.execute(delete(MediaFile).where(MediaFile.path == relative))

@@ -25,3 +25,6 @@ deploy/seed/*.sql
 .swarm/
 .hive-mind/
 *.log
+# Backups locais do banco (dados reais)
+backups/
+*.dump

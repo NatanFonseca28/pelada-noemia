@@ -1,6 +1,6 @@
 """Testes das proteções de segurança para produção."""
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from io import BytesIO
 
 import pytest
 from PIL import Image
@@ -127,8 +127,8 @@ async def test_foto_regravada_sem_metadados(client, admin_headers):
     jpg = image_bytes("JPEG", size=(3000, 2000), exif=exif.tobytes())
     r = await client.put(f"/api/players/{pid}/photo", files={"file": ("x.jpg", jpg, "image/jpeg")}, headers=admin_headers)
     assert r.status_code == 200
-    saved = Path(get_settings().media_dir) / r.json()["photo_url"].removeprefix("/api/media/")
-    with Image.open(saved) as img:
+    saved = (await client.get(r.json()["photo_url"])).content
+    with Image.open(BytesIO(saved)) as img:
         assert img.format == "WEBP" and max(img.size) <= 1024
         assert not img.getexif()  # sem EXIF/GPS
 

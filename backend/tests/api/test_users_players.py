@@ -70,10 +70,18 @@ async def test_upload_foto(client, admin_headers):
     assert r.status_code == 200
     url = r.json()["photo_url"]
     assert url.startswith("/api/media/players/") and url.endswith(".webp")  # regravada como WEBP
+    img = await client.get(url)  # pública (usada em <img>) e servida do banco
+    assert img.status_code == 200 and img.headers["content-type"] == "image/webp" and "immutable" in img.headers["cache-control"]
     r = await client.put(
         f"/api/players/{pid}/photo", files={"file": ("f.gif", b"GIF89a", "image/gif")}, headers=admin_headers
     )
     assert r.status_code == 422
+    # trocar e remover a foto apaga o arquivo antigo
+    new = (await client.put(f"/api/players/{pid}/photo", files={"file": ("g.png", image_bytes("PNG"), "image/png")},
+                            headers=admin_headers)).json()["photo_url"]
+    assert (await client.get(url)).status_code == 404
+    await client.delete(f"/api/players/{pid}/photo", headers=admin_headers)
+    assert (await client.get(new)).status_code == 404
 
 
 async def test_admin_cria_usuario_vinculado_a_jogador(client, admin_headers):

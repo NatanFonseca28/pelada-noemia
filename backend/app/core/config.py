@@ -1,13 +1,32 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_JWT_SECRET = "dev-secret-change-me-dev-secret-change-me"
 DEFAULT_DB_PASSWORDS = {"pelada", "postgres", "password", "admin", ""}
+
+
+def asyncpg_url(url: str | None) -> str | None:
+    """Aceita a URL como os provedores entregam (ex.: Neon: postgresql://…?sslmode=require&channel_binding=require)
+    e converte para o driver asyncpg: esquema postgresql+asyncpg e `ssl=` no lugar de `sslmode` (que o asyncpg
+    não entende); `channel_binding` é descartado."""
+    if not url:
+        return url
+    parts = urlsplit(url)
+    scheme = parts.scheme
+    if scheme in ("postgres", "postgresql"):
+        scheme = "postgresql+asyncpg"
+    query = []
+    for key, value in parse_qsl(parts.query):
+        if key == "sslmode":
+            query.append(("ssl", value))
+        elif key != "channel_binding":
+            query.append((key, value))
+    return urlunsplit((scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 class InsecureConfigError(RuntimeError):
@@ -46,6 +65,11 @@ class Settings(BaseSettings):
     admin_email: str = "admin@pelada.app"
     admin_password: str = "admin123-dev-only"
 
+    @field_validator("database_url", "migrations_database_url", "test_database_url")
+    @classmethod
+    def _asyncpg(cls, value: str | None) -> str | None:
+        return asyncpg_url(value)
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
@@ -80,6 +104,9 @@ class Settings(BaseSettings):
         for name, url in (("DATABASE_URL", self.database_url), ("MIGRATIONS_DATABASE_URL", self.migrations_database_url)):
             if url and (urlsplit(url.replace("+asyncpg", "")).password or "") in DEFAULT_DB_PASSWORDS:
                 problems.append(f"{name} usa senha de banco padrão/fraca")
+            if url and "-pooler." in (urlsplit(url).hostname or ""):
+                # PgBouncer em modo transação quebra os prepared statements do asyncpg
+                problems.append(f"{name} aponta para o endpoint com pooling do Neon (-pooler): use a conexão direta")
         if problems:
             raise InsecureConfigError("Configuração insegura para produção:\n- " + "\n- ".join(problems))
         return self
