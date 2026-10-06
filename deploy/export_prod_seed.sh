@@ -1,6 +1,7 @@
 #!/bin/sh
 # Gera deploy/seed/prod-seed.sql a partir do banco de DEV, sem contas de teste nem sessões.
 # Uso (na máquina de dev, com o ambiente noemia-cup rodando):  sh deploy/export_prod_seed.sh
+# COPIA_IDENTICA=sim: mantém todos os usuários (inclusive os de teste), senhas e flags; só descarta as sessões.
 # Depois: copie o arquivo para o servidor, suba a produção e APAGUE o arquivo (contém dados pessoais).
 set -eu
 DB_CONTAINER="${DB_CONTAINER:-noemia-cup-db}"
@@ -14,13 +15,18 @@ docker exec "$DB_CONTAINER" createdb -U "$DB_USER" "$TMP_DB"
 trap 'docker exec "$DB_CONTAINER" dropdb -U "$DB_USER" --if-exists "$TMP_DB" >/dev/null 2>&1 || true' EXIT
 docker exec "$DB_CONTAINER" sh -c "pg_dump -U $DB_USER $SRC_DB | psql -q -U $DB_USER $TMP_DB" >/dev/null
 
-echo ">> Removendo contas de teste e sessões"
-docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -q -U "$DB_USER" "$TMP_DB" <<'SQL'
+if [ "${COPIA_IDENTICA:-nao}" = "sim" ]; then
+  echo ">> Cópia idêntica: mantendo todos os usuários e senhas (só as sessões são descartadas)"
+  docker exec "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -q -U "$DB_USER" "$TMP_DB" -c "DELETE FROM refresh_tokens;"
+else
+  echo ">> Removendo contas de teste e sessões"
+  docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -q -U "$DB_USER" "$TMP_DB" <<'SQL'
 DELETE FROM refresh_tokens;
 DELETE FROM users WHERE email LIKE '%@pelada.app' OR email LIKE '%@test.com';
 -- todo usuário que for para produção define uma senha nova no 1º acesso
 UPDATE users SET must_change_password = true, failed_logins = 0, locked_until = NULL;
 SQL
+fi
 docker exec "$DB_CONTAINER" psql -At -U "$DB_USER" "$TMP_DB" -c "SELECT 'usuários exportados: ' || string_agg(email || ' (' || role || ')', ', ') FROM users"
 
 echo ">> Gerando $OUT"

@@ -6,6 +6,7 @@
 #   APP_DB_PASSWORD='senha-gerada-com-openssl' \
 #   sh deploy/neon/preparar-neon.sh
 #
+# Com COPIA_IDENTICA=sim, leva também as contas de teste e mantém as senhas (ver deploy/export_prod_seed.sh).
 # Com SEED=nao, pula a carga de dados (banco começa vazio; as migrations criam as tabelas no 1º deploy da API).
 set -eu
 : "${NEON_OWNER_URL:?defina NEON_OWNER_URL (connection string do Neon, SEM pooling)}"
