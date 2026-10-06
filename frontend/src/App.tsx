@@ -1,6 +1,7 @@
 import { lazy, type ComponentType } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/auth/RequireAuth'
+import { RequirePage, RequireSuperadmin } from '@/auth/RequirePage'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
@@ -25,6 +26,8 @@ const UsersPage = named(() => import('@/pages/gestao/UsersPage'), 'UsersPage')
 const FinancePage = named(() => import('@/pages/gestao/FinancePage'), 'FinancePage')
 const SettingsPage = named(() => import('@/pages/gestao/SettingsPage'), 'SettingsPage')
 const AuditPage = named(() => import('@/pages/gestao/AuditPage'), 'AuditPage')
+const AccessLogPage = named(() => import('@/pages/gestao/AccessLogPage'), 'AccessLogPage')
+const PageVisibilityPage = named(() => import('@/pages/gestao/PageVisibilityPage'), 'PageVisibilityPage')
 const ExportPage = named(() => import('@/pages/gestao/ExportPage'), 'ExportPage')
 const DesignSystemPage = lazy(() => import('@/pages/DesignSystemPage'))
 
@@ -36,13 +39,14 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
+          <Route path="conta" element={<AccountPage />} />
+          <Route element={<RequirePage />}>
           <Route path="rodada" element={<RoundViewPage />} />
           <Route path="jogadores" element={<PlayersListPage />} />
           <Route path="jogadores/:id" element={<PlayerProfilePage />} />
           <Route path="estatisticas" element={<StatsPage />} />
           <Route path="campeonato" element={<LatestTournamentPage />} />
           <Route path="campeonato/:id" element={<TournamentPage />} />
-          <Route path="conta" element={<AccountPage />} />
           <Route path="gestao" element={<RequireAuth roles={['ADMIN']} />}>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
@@ -52,9 +56,14 @@ export function App() {
             <Route path="usuarios" element={<UsersPage />} />
             <Route path="financeiro" element={<FinancePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
-            <Route path="auditoria" element={<AuditPage />} />
             <Route path="exportar" element={<ExportPage />} />
-            <Route path="design" element={<DesignSystemPage />} />
+            <Route element={<RequireSuperadmin />}>
+              <Route path="auditoria" element={<AuditPage />} />
+              <Route path="acessos" element={<AccessLogPage />} />
+              <Route path="visibilidade" element={<PageVisibilityPage />} />
+              <Route path="design" element={<DesignSystemPage />} />
+            </Route>
+          </Route>
           </Route>
         </Route>
       </Route>

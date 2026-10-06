@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { usePageAccess } from '@/lib/pages'
 import { ApiError } from '@/api/client'
 import { usePlayers, useSettings } from '@/api/queries'
 import { useCurrentRound, useMyAttendance } from '@/api/rounds'
@@ -62,7 +63,16 @@ function CurrentRoundCard({ round }: { round: RoundDetail }) {
   )
 }
 
+const SHORTCUTS = [
+  { to: '/gestao/dashboard', label: 'Dashboard' },
+  { to: '/gestao/rodadas', label: 'Rodadas e sorteio' },
+  { to: '/gestao/jogadores', label: 'Cadastrar jogador' },
+  { to: '/gestao/usuarios', label: 'Aprovar cadastros' },
+  { to: '/gestao/configuracoes', label: 'Configurações' },
+]
+
 export function HomePage() {
+  const { isHidden } = usePageAccess()
   const { user, hasRole } = useAuth()
   const { data: settings } = useSettings()
   const { data: players } = usePlayers({ active: true })
@@ -92,11 +102,9 @@ export function HomePage() {
         <Card className="mt-6 p-5">
           <h2 className="font-semibold">Atalhos de gestão</h2>
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
-            <Link className="rounded-lg bg-soft px-3 py-2" to="/gestao/dashboard">Dashboard</Link>
-            <Link className="rounded-lg bg-soft px-3 py-2" to="/gestao/rodadas">Rodadas e sorteio</Link>
-            <Link className="rounded-lg bg-soft px-3 py-2" to="/gestao/jogadores">Cadastrar jogador</Link>
-            <Link className="rounded-lg bg-soft px-3 py-2" to="/gestao/usuarios">Aprovar cadastros</Link>
-            <Link className="rounded-lg bg-soft px-3 py-2" to="/gestao/configuracoes">Configurações</Link>
+            {SHORTCUTS.filter((l) => !isHidden(l.to)).map((l) => (
+              <Link key={l.to} className="rounded-lg bg-soft px-3 py-2" to={l.to}>{l.label}</Link>
+            ))}
           </div>
         </Card>
       )}

@@ -5,9 +5,11 @@ import {
   CalendarCheck,
   Dices,
   Home,
+  EyeOff,
   KeyRound,
   LayoutDashboard,
   ListChecks,
+  LogIn,
   LogOut,
   Monitor,
   Moon,
@@ -25,6 +27,7 @@ import {
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
+import { usePageAccess } from '@/lib/pages'
 import { roleLabel } from '@/lib/labels'
 import { useTheme, type Theme } from '@/theme/ThemeProvider'
 import { ICON_STROKE, Modal, SkeletonList, cx } from './ui'
@@ -55,8 +58,14 @@ const GESTAO: NavItem[] = [
   { to: '/gestao/usuarios', label: 'Usuários', icon: Users },
   { to: '/gestao/financeiro', label: 'Financeiro', icon: Wallet },
   { to: '/gestao/configuracoes', label: 'Configurações', icon: Settings },
-  { to: '/gestao/auditoria', label: 'Auditoria', icon: ShieldCheck },
   { to: '/gestao/exportar', label: 'Exportar dados', icon: ArrowDownToLine },
+]
+
+// Só o superadmin
+const SUPER: NavItem[] = [
+  { to: '/gestao/visibilidade', label: 'Visibilidade das páginas', icon: EyeOff },
+  { to: '/gestao/acessos', label: 'Log de acessos', icon: LogIn },
+  { to: '/gestao/auditoria', label: 'Auditoria', icon: ShieldCheck },
   { to: '/gestao/design', label: 'Design system', icon: Palette },
 ]
 
@@ -69,7 +78,7 @@ const nextTheme: Record<Theme, Theme> = { dark: 'light', light: 'system', system
 
 /** Título da seção atual (cabeçalho compacto do celular). */
 function sectionTitle(path: string): string {
-  const all = [...GESTAO, ...PELADA, { to: '/conta', label: 'Minha conta', icon: KeyRound }]
+  const all = [...SUPER, ...GESTAO, ...PELADA, { to: '/conta', label: 'Minha conta', icon: KeyRound }]
   const hit = all
     .filter((i) => (i.to === '/' ? path === '/' : path === i.to || path.startsWith(i.to + '/')))
     .sort((a, b) => b.to.length - a.to.length)[0]
@@ -130,6 +139,10 @@ export function Layout() {
   const { pathname } = useLocation()
   const ThemeIcon = themeIcons[theme]
   const admin = hasRole('ADMIN')
+  const { isHidden, superadmin } = usePageAccess()
+  const pelada = PELADA.filter((i) => !isHidden(i.to))
+  const gestao = GESTAO.filter((i) => !isHidden(i.to))
+  const bottom = BOTTOM.filter((i) => !isHidden(i.to))
   const inGestao = pathname.startsWith('/gestao')
   const title = sectionTitle(pathname)
 
@@ -162,11 +175,17 @@ export function Layout() {
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <GroupLabel>Pelada</GroupLabel>
-          <div className="space-y-0.5">{PELADA.map((i) => <SideLink key={i.to} item={i} />)}</div>
-          {admin && (
+          <div className="space-y-0.5">{pelada.map((i) => <SideLink key={i.to} item={i} />)}</div>
+          {admin && gestao.length > 0 && (
             <>
               <GroupLabel admin>Gestão</GroupLabel>
-              <div className="space-y-0.5">{GESTAO.map((i) => <SideLink key={i.to} item={i} />)}</div>
+              <div className="space-y-0.5">{gestao.map((i) => <SideLink key={i.to} item={i} />)}</div>
+            </>
+          )}
+          {superadmin && (
+            <>
+              <GroupLabel admin>Superadmin</GroupLabel>
+              <div className="space-y-0.5">{SUPER.map((i) => <SideLink key={i.to} item={i} />)}</div>
             </>
           )}
         </nav>
@@ -224,8 +243,8 @@ export function Layout() {
 
       {/* ---------------- Barra inferior (celular) ---------------- */}
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-nav border-t border-line bg-surface/95 backdrop-blur lg:hidden" aria-label="Navegação principal">
-        <ul className="mx-auto grid max-w-lg grid-cols-5">
-          {BOTTOM.map((item) => {
+        <ul className="mx-auto grid max-w-lg" style={{ gridTemplateColumns: `repeat(${bottom.length + 1}, minmax(0, 1fr))` }}>
+          {bottom.map((item) => {
             const active = isActive(item, pathname)
             return (
               <li key={item.to}>
@@ -263,12 +282,18 @@ export function Layout() {
       {/* "Mais" (celular): bottom sheet com o restante da navegação */}
       <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="Mais">
         <div className="space-y-1">
-          <SideLink item={PELADA[4]} onNavigate={() => setMoreOpen(false)} />
+          {!isHidden(PELADA[4].to) && <SideLink item={PELADA[4]} onNavigate={() => setMoreOpen(false)} />}
           <SideLink item={{ to: '/conta', label: 'Minha conta', icon: KeyRound }} onNavigate={() => setMoreOpen(false)} />
-          {admin && (
+          {admin && gestao.length > 0 && (
             <>
               <GroupLabel admin>Gestão</GroupLabel>
-              {GESTAO.map((i) => <SideLink key={i.to} item={i} onNavigate={() => setMoreOpen(false)} />)}
+              {gestao.map((i) => <SideLink key={i.to} item={i} onNavigate={() => setMoreOpen(false)} />)}
+            </>
+          )}
+          {superadmin && (
+            <>
+              <GroupLabel admin>Superadmin</GroupLabel>
+              {SUPER.map((i) => <SideLink key={i.to} item={i} onNavigate={() => setMoreOpen(false)} />)}
             </>
           )}
           <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-3">
