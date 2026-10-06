@@ -1,0 +1,12 @@
+# Build estático do front + Caddy (HTTPS automático, headers de segurança, proxy /api).
+# Contexto do build: raiz do projeto (para copiar deploy/Caddyfile).
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+FROM caddy:2-alpine
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv

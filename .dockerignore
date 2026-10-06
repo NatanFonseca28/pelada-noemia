@@ -1,0 +1,12 @@
+# Contexto de build da raiz (usado pelo frontend/Dockerfile.prod): nada de segredos ou dados
+.env
+.env.*
+!.env.prod.example
+db/seed
+deploy/seed
+backup
+backend
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache

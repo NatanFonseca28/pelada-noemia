@@ -1,0 +1,105 @@
+# Produção — Pelada de Quarta. Separado do ambiente de dev (docker-compose.yml).
+# Uso: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+name: pelada-prod
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  db:
+    <<: *hardening
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}          # dono do schema (migrations)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      APP_DB_USER: ${APP_DB_USER}              # usuário da API (privilégio mínimo)
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/db-init:/docker-entrypoint-initdb.d:ro
+      - ./deploy/seed:/seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+    # sem "ports": o banco não é acessível de fora do Docker
+
+  api:
+    <<: *hardening
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${APP_DB_USER}:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
+      MIGRATIONS_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECURE: "true"
+      CORS_ORIGINS: https://${DOMAIN}
+      ALLOWED_HOSTS: ${DOMAIN},api
+      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-15}
+      REFRESH_TOKEN_DAYS: ${REFRESH_TOKEN_DAYS:-7}
+      MEDIA_DIR: /app/media
+      MAX_PHOTO_MB: ${MAX_PHOTO_MB:-3}
+    volumes:
+      - media:/app/media
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+    # sem "ports": só o Caddy alcança a API
+
+  web:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+      CADDY_EXTRA_GLOBAL: ${CADDY_EXTRA_GLOBAL:-}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    networks: [backend]
+
+  backup:
+    <<: *hardening
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  backend: {}
+
+volumes:
+  pgdata:
+  media:
+  backups:
+  caddy_data:
+  caddy_config:

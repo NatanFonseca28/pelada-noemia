@@ -1,0 +1,27 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+node_modules/
+dist/
+backend/media/
+*.tsbuildinfo
+# Seed com dados reais (pessoais/financeiros) — não versionar
+db/seed/*.sql
+backup/
+# Produção
+.env.prod
+deploy/seed/*.sql
+# Planilhas com dados reais
+*.xlsx
+!backend/tests/**/*.xlsx
+.env.*
+!.env.example
+!.env.prod.example
+# Ferramentas locais
+.claude/
+.claude-flow/
+.swarm/
+.hive-mind/
+*.log

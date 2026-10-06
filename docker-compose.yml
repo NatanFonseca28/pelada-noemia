@@ -1,0 +1,66 @@
+# Noemia Cup - Pelada de quarta (ambiente de desenvolvimento)
+name: noemia-cup-pelada-de-quarta
+
+x-labels: &labels
+  com.noemiacup.project: "Noemia Cup - Pelada de quarta"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: noemia-cup-db
+    labels: *labels
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./db/seed:/seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    image: noemia-cup/api:dev
+    container_name: noemia-cup-api
+    labels: *labels
+    env_file: .env
+    environment:
+      WATCHFILES_FORCE_POLLING: "true"  # bind mount do Windows/WSL não propaga eventos de arquivo
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - media:/app/media
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  web:
+    build: ./frontend
+    image: noemia-cup/web:dev
+    container_name: noemia-cup-web
+    labels: *labels
+    environment:
+      API_PROXY_TARGET: http://api:8000
+      VITE_USE_POLLING: "true"
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:
+  media:

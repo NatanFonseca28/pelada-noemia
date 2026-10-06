@@ -1,0 +1,64 @@
+import { lazy, type ComponentType } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { RequireAuth } from '@/auth/RequireAuth'
+import { Layout } from '@/components/Layout'
+import { LoginPage } from '@/pages/LoginPage'
+import { RegisterPage } from '@/pages/RegisterPage'
+
+// Rotas carregadas sob demanda (o Suspense fica no Layout, com skeleton)
+const named = <T extends string>(loader: () => Promise<Record<T, ComponentType>>, name: T) =>
+  lazy(() => loader().then((m) => ({ default: m[name] })))
+
+const HomePage = named(() => import('@/pages/pelada/HomePage'), 'HomePage')
+const RoundViewPage = named(() => import('@/pages/pelada/RoundViewPage'), 'RoundViewPage')
+const PlayersListPage = named(() => import('@/pages/pelada/PlayersListPage'), 'PlayersListPage')
+const PlayerProfilePage = named(() => import('@/pages/pelada/PlayerProfilePage'), 'PlayerProfilePage')
+const StatsPage = named(() => import('@/pages/pelada/StatsPage'), 'StatsPage')
+const TournamentPage = named(() => import('@/pages/pelada/TournamentPage'), 'TournamentPage')
+const LatestTournamentPage = named(() => import('@/pages/pelada/TournamentPage'), 'LatestTournamentPage')
+const AccountPage = named(() => import('@/pages/AccountPage'), 'AccountPage')
+const DashboardPage = named(() => import('@/pages/gestao/DashboardPage'), 'DashboardPage')
+const RoundsPage = named(() => import('@/pages/gestao/RoundsPage'), 'RoundsPage')
+const RoundPage = named(() => import('@/pages/gestao/RoundPage'), 'RoundPage')
+const PlayersAdminPage = named(() => import('@/pages/gestao/PlayersAdminPage'), 'PlayersAdminPage')
+const UsersPage = named(() => import('@/pages/gestao/UsersPage'), 'UsersPage')
+const FinancePage = named(() => import('@/pages/gestao/FinancePage'), 'FinancePage')
+const SettingsPage = named(() => import('@/pages/gestao/SettingsPage'), 'SettingsPage')
+const AuditPage = named(() => import('@/pages/gestao/AuditPage'), 'AuditPage')
+const ExportPage = named(() => import('@/pages/gestao/ExportPage'), 'ExportPage')
+const DesignSystemPage = lazy(() => import('@/pages/DesignSystemPage'))
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/cadastro" element={<RegisterPage />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="rodada" element={<RoundViewPage />} />
+          <Route path="jogadores" element={<PlayersListPage />} />
+          <Route path="jogadores/:id" element={<PlayerProfilePage />} />
+          <Route path="estatisticas" element={<StatsPage />} />
+          <Route path="campeonato" element={<LatestTournamentPage />} />
+          <Route path="campeonato/:id" element={<TournamentPage />} />
+          <Route path="conta" element={<AccountPage />} />
+          <Route path="gestao" element={<RequireAuth roles={['ADMIN']} />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="rodadas" element={<RoundsPage />} />
+            <Route path="rodadas/:id" element={<RoundPage />} />
+            <Route path="jogadores" element={<PlayersAdminPage />} />
+            <Route path="usuarios" element={<UsersPage />} />
+            <Route path="financeiro" element={<FinancePage />} />
+            <Route path="configuracoes" element={<SettingsPage />} />
+            <Route path="auditoria" element={<AuditPage />} />
+            <Route path="exportar" element={<ExportPage />} />
+            <Route path="design" element={<DesignSystemPage />} />
+          </Route>
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
