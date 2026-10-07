@@ -23,6 +23,7 @@ const AccountPage = named(() => import('@/pages/AccountPage'), 'AccountPage')
 const DashboardPage = named(() => import('@/pages/gestao/DashboardPage'), 'DashboardPage')
 const RoundsPage = named(() => import('@/pages/gestao/RoundsPage'), 'RoundsPage')
 const RoundPage = named(() => import('@/pages/gestao/RoundPage'), 'RoundPage')
+const AttendancePage = named(() => import('@/pages/gestao/AttendancePage'), 'AttendancePage')
 const PlayersAdminPage = named(() => import('@/pages/gestao/PlayersAdminPage'), 'PlayersAdminPage')
 const UsersPage = named(() => import('@/pages/gestao/UsersPage'), 'UsersPage')
 const FinancePage = named(() => import('@/pages/gestao/FinancePage'), 'FinancePage')
@@ -58,6 +59,7 @@ export function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="rodadas" element={<RoundsPage />} />
             <Route path="rodadas/:id" element={<RoundPage />} />
+            <Route path="presenca" element={<AttendancePage />} />
             <Route path="jogadores" element={<PlayersAdminPage />} />
             <Route path="usuarios" element={<UsersPage />} />
             <Route path="financeiro" element={<FinancePage />} />

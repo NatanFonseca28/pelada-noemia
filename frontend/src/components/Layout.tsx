@@ -22,6 +22,7 @@ import {
   Shirt,
   Sun,
   Trophy,
+  UserCheck,
   Users,
   Wallet,
   type LucideIcon,
@@ -60,6 +61,7 @@ const PELADA: NavItem[] = [
 const GESTAO: NavItem[] = [
   { to: '/gestao/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/gestao/rodadas', label: 'Rodadas e sorteio', icon: Dices },
+  { to: '/gestao/presenca', label: 'Presença', icon: UserCheck },
   { to: '/gestao/jogadores', label: 'Cadastro de jogadores', icon: ListChecks },
   { to: '/gestao/usuarios', label: 'Usuários', icon: Users },
   { to: '/gestao/financeiro', label: 'Financeiro', icon: Wallet },

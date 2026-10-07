@@ -46,6 +46,9 @@ export function useRoundActions(roundId: number) {
     attendance: useRoundAction(roundId, ({ playerId, confirmed }: { playerId: number; confirmed: boolean }) =>
       api<RoundDetail>(`${base}/attendances/${playerId}`, { method: 'PUT', body: json({ confirmed }) }),
     ),
+    clearAttendance: useRoundAction(roundId, (playerId: number) =>
+      api<RoundDetail>(`${base}/attendances/${playerId}`, { method: 'DELETE' }),
+    ),
     draw: useRoundAction(roundId, (body: { num_teams?: number; seed?: number }) =>
       api<RoundDetail>(`${base}/draw`, { method: 'POST', body: json(body) }),
     ),

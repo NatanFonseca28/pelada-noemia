@@ -132,3 +132,40 @@ async def test_formacao_alternativa_e_data_unica(client, admin_headers):
     d = (await client.post(f"/api/rounds/{rid}/draw", json={"num_teams": 4}, headers=admin_headers)).json()
     assert len(d["teams"]) == 4
     assert (await client.post("/api/rounds", json={"date": "2026-10-07"}, headers=admin_headers)).status_code == 409
+
+
+async def test_tres_estados_de_presenca(client, admin_headers, jogador_headers, session_factory):
+    ids = await make_players(client, admin_headers, 15, 1)
+    async with session_factory() as s:
+        user = await s.scalar(select(User).where(User.email == "jogador@test.com"))
+        user.player_id = ids[0]
+        await s.commit()
+    rid = await new_round(client, admin_headers)
+
+    # Jogador avisa pelo app que não vai; admin marca outro como ausente e um terceiro como confirmado
+    r = await client.put(f"/api/rounds/{rid}/attendance/me", json={"confirmed": False}, headers=jogador_headers)
+    assert r.status_code == 200 and r.json()["my_status"] == "CANCELADO"
+    await client.put(f"/api/rounds/{rid}/attendances/{ids[1]}", json={"confirmed": False}, headers=admin_headers)
+    d = (await client.put(f"/api/rounds/{rid}/attendances/{ids[2]}", json={"confirmed": True},
+                          headers=admin_headers)).json()
+    assert [a["player_id"] for a in d["attendances"]] == [ids[2]]
+    assert {a["player_id"] for a in d["absences"]} == {ids[0], ids[1]}
+    assert all(a["type"] == "MENSALISTA" for a in d["absences"])
+
+    # Voltar para "sem resposta"
+    r = await client.delete(f"/api/rounds/{rid}/attendances/{ids[0]}", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    assert ids[0] not in {a["player_id"] for a in r.json()["absences"] + r.json()["attendances"]}
+    cur = (await client.get(f"/api/rounds/{rid}", headers=jogador_headers)).json()
+    assert cur["my_status"] is None
+    # Sem registro: não faz nada
+    assert (await client.delete(f"/api/rounds/{rid}/attendances/{ids[5]}", headers=admin_headers)).status_code == 200
+
+    # Só admin, e só com a lista editável
+    assert (await client.delete(f"/api/rounds/{rid}/attendances/{ids[1]}",
+                                headers=jogador_headers)).status_code == 403
+    await confirm_all(client, admin_headers, rid, ids[3:])
+    await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)
+    await client.post(f"/api/rounds/{rid}/lock", headers=admin_headers)
+    assert (await client.delete(f"/api/rounds/{rid}/attendances/{ids[1]}",
+                                headers=admin_headers)).status_code == 422

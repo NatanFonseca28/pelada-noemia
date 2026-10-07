@@ -58,6 +58,14 @@ async def set_attendance(round_id: int, player_id: int, data: AttendanceSet, adm
     return await service.detail(round_id, admin)
 
 
+@router.delete("/{round_id}/attendances/{player_id}", response_model=RoundDetail)
+async def clear_attendance(round_id: int, player_id: int, admin: AdminUser, session: SessionDep):
+    """ADMIN volta o jogador para "sem resposta"."""
+    service = RoundService(session)
+    await service.clear_attendance(round_id, player_id, admin)
+    return await service.detail(round_id, admin)
+
+
 @router.post("/{round_id}/draw", response_model=RoundDetail)
 async def draw(round_id: int, data: DrawRequest, admin: AdminUser, session: SessionDep):
     """Sorteia (ou refaz) os times. `num_teams` escolhe uma formação alternativa; `seed` reproduz um sorteio."""

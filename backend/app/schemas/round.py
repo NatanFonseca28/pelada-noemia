@@ -70,6 +70,7 @@ class SimplePlayer(BaseModel):
 
 class RoundDetail(RoundSummary):
     attendances: list[AttendanceOut]
+    absences: list[AttendanceOut]  # avisaram que não vão (CANCELADO); sem registro = sem resposta
     my_player_id: int | None
     my_status: str | None  # CONFIRMADO / CANCELADO / None
     draw: DrawInfo | None

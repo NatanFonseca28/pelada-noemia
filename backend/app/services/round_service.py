@@ -79,6 +79,7 @@ class RoundService:
             )
         ).all()
         confirmed = [(a, p) for a, p in att_rows if a.status == AttendanceStatus.CONFIRMADO]
+        absent = [(a, p) for a, p in att_rows if a.status == AttendanceStatus.CANCELADO]
         my_status = next((a.status.value for a, p in att_rows if p.id == viewer.player_id), None)
 
         draw = await self.session.scalar(select(Draw).where(Draw.round_id == rnd.id, Draw.is_current.is_(True)))
@@ -140,11 +141,8 @@ class RoundService:
             notes=rnd.notes,
             confirmed_count=len(confirmed),
             has_teams=bool(teams),
-            attendances=[
-                AttendanceOut(player_id=p.id, name=p.display_name, type=p.type,
-                              primary_position=p.primary_position, source=a.source, updated_at=a.updated_at)
-                for a, p in confirmed
-            ],
+            attendances=[self._attendance_out(a, p) for a, p in confirmed],
+            absences=[self._attendance_out(a, p) for a, p in absent],
             my_player_id=viewer.player_id,
             my_status=my_status,
             draw=DrawInfo(
@@ -262,6 +260,23 @@ class RoundService:
         await audit_service.record(self.session, user_id=actor.id, action="ATTENDANCE", entity="round",
                                    entity_id=rnd.id, before={"player_id": player_id, "status": before},
                                    after={"player_id": player_id, "status": status.value})
+        await self.session.commit()
+
+    async def clear_attendance(self, round_id: int, player_id: int, actor: User) -> None:
+        """ADMIN volta o jogador para "sem resposta" (apaga o registro de presença)."""
+        rnd = await self._round(round_id)
+        if rnd.status not in EDITABLE:
+            raise ValidationError("Times travados: destrave para alterar a lista")
+        att = await self.session.scalar(
+            select(Attendance).where(Attendance.round_id == rnd.id, Attendance.player_id == player_id)
+        )
+        if att is None:
+            return
+        before = att.status.value
+        await self.session.delete(att)
+        await audit_service.record(self.session, user_id=actor.id, action="ATTENDANCE", entity="round",
+                                   entity_id=rnd.id, before={"player_id": player_id, "status": before},
+                                   after={"player_id": player_id, "status": None})
         await self.session.commit()
 
     async def set_my_attendance(self, round_id: int, confirmed: bool, user: User) -> None:
@@ -387,6 +402,11 @@ class RoundService:
                                    before={"player_id": player_id, **(before or {})},
                                    after={"player_id": player_id, **(after or {})})
         await self.session.commit()
+
+    @staticmethod
+    def _attendance_out(a: Attendance, p: Player) -> AttendanceOut:
+        return AttendanceOut(player_id=p.id, name=p.display_name, type=p.type,
+                             primary_position=p.primary_position, source=a.source, updated_at=a.updated_at)
 
     async def _round(self, round_id: int) -> Round:
         rnd = await self.session.get(Round, round_id)

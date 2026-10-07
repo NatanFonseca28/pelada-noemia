@@ -267,6 +267,8 @@ export interface DrawInfo {
 
 export interface RoundDetail extends RoundSummary {
   attendances: AttendanceItem[]
+  /** avisaram que não vão; quem não tem registro ainda não respondeu */
+  absences: AttendanceItem[]
   my_player_id: number | null
   my_status: 'CONFIRMADO' | 'CANCELADO' | null
   draw: DrawInfo | null

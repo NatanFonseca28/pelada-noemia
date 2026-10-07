@@ -42,6 +42,9 @@ function AttendancePanel({ round, players }: { round: RoundDetail; players: Play
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex flex-wrap items-center gap-x-3 font-semibold">
           Presença · {round.attendances.length} confirmados <TypeLegend className="font-normal" />
+          <Link to={`/gestao/presenca?rodada=${round.id}`} className="text-sm font-normal text-primary-ink hover:underline">
+            Gerenciar presença ›
+          </Link>
         </h2>
         <div className="flex flex-wrap gap-1 text-xs">
           <Badge color="green">Linha: {line}</Badge>
