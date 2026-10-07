@@ -107,9 +107,22 @@ export function TeamCard({
       </ul>
       <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs text-muted">
         <Shield size={14} strokeWidth={ICON_STROKE} aria-hidden />
-        {team.has_fixed_gk ? 'Goleiro fixo' : team.has_rotation_gk ? 'Revezamento no gol' : team.uses_volunteer_gk ? 'Voluntário do time de fora' : 'Sem goleiro'}
+        {team.has_fixed_gk ? 'Goleiro fixo' : team.has_rotation_gk ? 'Revezamento no gol' : team.uses_shared_gk ? 'Goleiros da pelada' : team.uses_volunteer_gk ? 'Voluntário do time de fora' : 'Sem goleiro'}
         {footer}
       </div>
     </div>
+  )
+}
+
+/** Goleiros fixos que não pertencem a nenhum time (só ficam em um time quando há um por time). */
+export function SharedGoalkeepers({ players }: { players: { player_id: number; name: string }[] }) {
+  if (!players.length) return null
+  return (
+    <p className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+      <Shield size={14} strokeWidth={ICON_STROKE} aria-hidden />
+      <span className="font-medium">Goleiro{players.length > 1 ? 's' : ''} da pelada:</span>
+      <span>{players.map((p) => p.name).join(', ')}</span>
+      <span className="text-xs text-muted">· agarra{players.length > 1 ? 'm' : ''} para os times em campo, sem time fixo</span>
+    </p>
   )
 }

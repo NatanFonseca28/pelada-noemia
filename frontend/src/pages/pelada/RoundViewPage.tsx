@@ -5,7 +5,7 @@ import { useCurrentRound, useMyAttendance } from '@/api/rounds'
 import type { RoundDetail } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { ShareButton } from '@/components/ShareButton'
-import { TeamCard } from '@/components/TeamCard'
+import { SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
 import { useToast } from '@/contexts/feedback'
 import { Alert, Avatar, Badge, Button, Card, EmptyState, ICON_STROKE, PageHeader, PlayerName, PositionBadge, QueryState, Skeleton, TypeLegend, cx, errorMessage } from '@/components/ui'
 import { formatDate, roundStatusLabel } from '@/lib/labels'
@@ -114,9 +114,10 @@ function RoundView({ round }: { round: RoundDetail }) {
               {round.status === 'TIMES_TRAVADOS' || round.status === 'ENCERRADA' ? 'Times' : 'Times sorteados (podem mudar)'}
             </h2>
             {(round.status === 'TIMES_TRAVADOS' || round.status === 'ENCERRADA') && (
-              <ShareButton text={() => teamsText(round.date, round.teams)} label="Compartilhar times" />
+              <ShareButton text={() => teamsText(round.date, round.teams, round.shared_goalkeepers)} label="Compartilhar times" />
             )}
           </div>
+          <SharedGoalkeepers players={round.shared_goalkeepers} />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {round.teams.map((t) => <TeamCard key={t.id} team={t} />)}
           </div>

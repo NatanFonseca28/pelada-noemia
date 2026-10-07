@@ -70,7 +70,7 @@ async def clear_attendance(round_id: int, player_id: int, admin: AdminUser, sess
 async def draw(round_id: int, data: DrawRequest, admin: AdminUser, session: SessionDep):
     """Sorteia (ou refaz) os times. `num_teams` escolhe uma formação alternativa; `seed` reproduz um sorteio."""
     service = RoundService(session)
-    await service.draw(round_id, data.num_teams, data.seed, admin)
+    await service.draw(round_id, data.num_teams, data.seed, admin, data.allow_short_team)
     return await service.detail(round_id, admin)
 
 

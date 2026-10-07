@@ -12,11 +12,17 @@ Regras (ver plano, seção 0 e "Regras do sorteio"):
  6. Excedentes (linha mod 5) vão no máximo um por time, só para times sem goleiro fixo,
     marcados como revezamento no gol: todo time é 5 na linha + 1 no gol. Quem não couber
     fica de reserva (sorteado entre todos de linha, antes da distribuição).
- 7. Goleiros fixos sorteados entre os times, no máximo um por time; sobras geram aviso.
+ 7. Goleiro fixo é fixo na posição, não no time: só entra em um time quando há exatamente
+    um goleiro fixo por time (ex.: 4 times e 4 goleiros). Fora isso, os goleiros fixos ficam
+    em `shared_goalkeepers` e agarram para todos os times. Nível e velocidade de goleiro
+    nunca entram no equilíbrio.
  8. "Equilibrar por nível e velocidade": força = nível + velocidade (1 a 5 cada, 3 se não
     informado). Dentro de cada posição, o mais forte disponível vai para o time mais fraco.
  9. A seed e o resultado são devolvidos para persistência/auditoria.
 10. Sobra grande → `alternatives` para o admin decidir.
+11. "Time com um a menos" (opção do sorteio): com 3+ times, se faltar só 1 jogador de linha
+    para mais um time, ele é formado com um a menos e completado na hora por alguém do
+    time que está de fora, em vez de deixar gente de reserva.
 """
 import random
 from dataclasses import asdict, dataclass, field
@@ -90,6 +96,7 @@ class DrawConfig:
     line_per_team: int = 5
     balance_by_skill: bool = False
     extra_team_threshold: int = 3
+    allow_short_team: bool = False
 
     @property
     def composition(self) -> dict[str, int]:
@@ -183,7 +190,7 @@ class DrawResult:
     warnings: list[str]
     infos: list[str]
     alternatives: list[Alternative]
-    unassigned: list[int]  # goleiros fixos sem time
+    shared_goalkeepers: list[int]  # goleiros fixos da pelada (sem time), regra 7
     reserves: list[int]  # jogadores de linha que não couberam em 5 + 1
 
     def to_dict(self) -> dict:
@@ -191,7 +198,8 @@ class DrawResult:
         for team, raw in zip(self.teams, data["teams"], strict=True):
             raw.update(
                 has_fixed_gk=team.has_fixed_gk,
-                uses_volunteer_gk=self.mode == Mode.CAMPEONATO and not team.has_fixed_gk and not team.has_rotation_gk,
+                uses_volunteer_gk=self.mode == Mode.CAMPEONATO and not team.has_fixed_gk
+                and not team.has_rotation_gk and len(self.shared_goalkeepers) < 2,
                 line_count=team.line_count,
                 level_sum=team.level_sum,
                 speed_sum=team.speed_sum,
@@ -241,12 +249,13 @@ def _quotas(sizes: list[int], config: DrawConfig) -> list[dict[str, int]]:
 def _plan(line_total: int, goalkeepers: int, num_teams: int, per_team: int) -> tuple[list[int], int, int]:
     """(linha base por time, excedentes que revezam no gol, reservas).
 
-    Cada time tem no máximo `per_team` na linha + 1 no gol. Só time sem goleiro fixo
-    recebe um excedente para revezar no gol; o que passar disso fica de reserva.
+    Cada time tem no máximo `per_team` na linha + 1 no gol. Com um goleiro fixo por time,
+    ninguém reveza; senão (goleiros da pelada, regra 7) cada time pode ter um excedente
+    revezando. O que passar disso fica de reserva.
     """
     sizes = _line_sizes(line_total, num_teams, per_team)
     surplus = line_total - sum(sizes)
-    rotation = min(surplus, num_teams - min(goalkeepers, num_teams))
+    rotation = min(surplus, 0 if goalkeepers == num_teams else num_teams)
     return sizes, rotation, surplus - rotation
 
 
@@ -271,8 +280,9 @@ def suggest_alternatives(line_total: int, config: DrawConfig, goalkeepers: int =
     if n < 2 or rest < config.extra_team_threshold:
         return []
     options = []
+    min_championship = 3 * per - (1 if config.allow_short_team else 0)
     for teams in (n, n + 1):
-        if teams > max_teams(line_total, per) or (teams >= 3 and line_total < 3 * per):
+        if teams > max_teams(line_total, per) or (teams >= 3 and line_total < min_championship):
             continue  # campeonato exige ao menos 3 times completos de linha (15 jogadores)
         base, rotation, reserves = _plan(line_total, goalkeepers, teams, per)
         # o revezamento vai para os times sem goleiro fixo, que ficam no fim da lista
@@ -304,14 +314,18 @@ def run_draw(
 
     # 2. Número de times
     auto_n = total_line // per
+    # Com a opção "time com um a menos", um time de campeonato pode ter per - 1 na linha (regra 11)
+    min_championship = 3 * per - (1 if config.allow_short_team else 0)
     if num_teams is None:
         n = auto_n
+        if config.allow_short_team and auto_n + 1 >= 3 and total_line >= (auto_n + 1) * per - 1:
+            n = auto_n + 1
     else:
         n = num_teams
         if n > max_teams(total_line, per):
             raise DrawError(f"Jogadores de linha insuficientes para {n} times ({total_line} confirmados)")
-    if n >= 3 and total_line < 3 * per:
-        raise DrawError(f"Campeonato exige ao menos {3 * per} jogadores de linha (há {total_line}).")
+    if n >= 3 and total_line < min_championship:
+        raise DrawError(f"Campeonato exige ao menos {min_championship} jogadores de linha (há {total_line}).")
     if n < 2:
         raise DrawError(
             f"São necessários ao menos {2 * per} jogadores de linha para 2 times "
@@ -404,22 +418,20 @@ def run_draw(
             place(teams[t], candidate, pos, how)
             substitutions.append(Substitution(candidate.id, candidate.name, t, pos, how))
 
-    # 7. Goleiros fixos (antes dos excedentes, para priorizar times sem goleiro)
-    gk_pool = list(goalkeepers)
-    rng.shuffle(gk_pool)
+    # 7. Goleiros fixos: um por time só quando a conta fecha; senão, goleiros da pelada
     team_order = list(range(n))
     rng.shuffle(team_order)
-    unassigned: list[int] = []
-    for i, gk in enumerate(gk_pool):
-        if i < n:
-            place(teams[team_order[i]], gk, GOALKEEPER, FilledBy.PRIMARIA, Role.GOLEIRO_FIXO)
-        else:
-            unassigned.append(gk.id)
-    if unassigned:
-        names = ", ".join(g.name for g in gk_pool[n:])
-        warnings.append(
-            f"Há mais goleiros fixos ({len(gk_pool)}) do que times ({n}). Sem time: {names}. "
-            "Mova-os manualmente para a linha ou deixe-os de fora."
+    shared: list[DrawPlayer] = []
+    if len(goalkeepers) == n:
+        gk_pool = list(goalkeepers)
+        rng.shuffle(gk_pool)
+        for t, gk in zip(team_order, gk_pool):
+            place(teams[t], gk, GOALKEEPER, FilledBy.PRIMARIA, Role.GOLEIRO_FIXO)
+    elif goalkeepers:
+        shared = sorted(goalkeepers, key=lambda p: p.name)
+        infos.append(
+            f"Goleiro(s) fixo(s) da pelada: {', '.join(g.name for g in shared)}. Não pertencem a nenhum time: "
+            "agarram para os times que estiverem em campo."
         )
 
     # 6. Excedentes: no máximo um por time, só para quem não tem goleiro fixo
@@ -433,17 +445,24 @@ def run_draw(
         how = FilledBy.PRIMARIA if p.primary else FilledBy.SEM_POSICAO
         place(teams[t], p, position, how, Role.REVEZAMENTO)
 
-    # Times sem goleiro
+    # Times sem goleiro (com 2+ goleiros da pelada, as duas metas de cada partida estão cobertas)
     no_keeper = [t for t in teams if not t.has_fixed_gk and not t.has_rotation_gk]
     mode = Mode.PELADA_NORMAL if n == 2 else Mode.CAMPEONATO
-    if no_keeper:
+    if no_keeper and len(shared) < 2:
+        when = " quando o goleiro fixo estiver no outro gol" if shared else ""
         infos.append(
             "Sem goleiro fixo nem excedente: "
             + ", ".join(f"Time {t.name}" for t in no_keeper)
-            + ". O gol fica com um voluntário do time que está fora da partida."
+            + f". O gol fica com um voluntário do time que está fora da partida{when}."
         )
     if mode == Mode.PELADA_NORMAL:
         infos.append("Apenas 2 times: pelada normal (sem campeonato).")
+    short = [t for t in teams if t.line_count < per]
+    if short:
+        infos.append(
+            "Com um a menos na linha: " + ", ".join(f"Time {t.name}" for t in short)
+            + ". Completa na hora com alguém do time que está de fora da partida."
+        )
 
     alternatives = suggest_alternatives(total_line, config, len(goalkeepers)) if num_teams is None else []
     if alternatives:
@@ -465,7 +484,7 @@ def run_draw(
         warnings=warnings,
         infos=infos,
         alternatives=alternatives,
-        unassigned=unassigned,
+        shared_goalkeepers=[g.id for g in shared],
         reserves=[p.id for p in reserves],
     )
 

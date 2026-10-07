@@ -92,21 +92,23 @@ def test_18_de_linha_3_times_de_6_revezando():
     assert all(t.has_rotation_gk for t in r.teams)
 
 
-def test_17_de_linha_e_1_goleiro_fixo():
-    r = run_draw(make_players(zag=7, ala=6, ata=4, gk=1), CFG, seed=5)
-    gk_team = next(t for t in r.teams if t.has_fixed_gk)
-    others = [t for t in r.teams if not t.has_fixed_gk]
-    assert gk_team.line_count == 5 and not gk_team.has_rotation_gk
-    assert [t.line_count for t in others] == [6, 6]
-    assert all(t.has_rotation_gk for t in others)
+def test_17_de_linha_e_1_goleiro_fixo_agarra_para_todos():
+    players = make_players(zag=7, ala=6, ata=4, gk=1)
+    r = run_draw(players, CFG, seed=5)
+    assert r.num_teams == 3 and not any(t.has_fixed_gk for t in r.teams)
+    assert r.shared_goalkeepers == [players[-1].id]
+    assert sorted(t.line_count for t in r.teams) == [5, 6, 6]
+    assert any("Não pertencem a nenhum time" in i for i in r.infos)
 
 
-def test_16_de_linha_e_2_goleiros_fixos():
-    r = run_draw(make_players(zag=6, ala=6, ata=4, gk=2), CFG, seed=9)
-    with_gk = [t for t in r.teams if t.has_fixed_gk]
-    without = [t for t in r.teams if not t.has_fixed_gk]
-    assert len(with_gk) == 2 and all(t.line_count == 5 for t in with_gk)
-    assert len(without) == 1 and without[0].line_count == 6 and without[0].has_rotation_gk
+def test_16_de_linha_e_2_goleiros_fixos_sao_da_pelada():
+    players = make_players(zag=6, ala=6, ata=4, gk=2)
+    r = run_draw(players, CFG, seed=9)
+    assert not any(t.has_fixed_gk for t in r.teams)
+    assert len(r.shared_goalkeepers) == 2
+    assert sorted(t.line_count for t in r.teams) == [5, 5, 6]
+    assert not any("voluntário" in i for i in r.infos)  # 2 goleiros cobrem as duas metas
+    assert not any(t["uses_volunteer_gk"] for t in r.to_dict()["teams"])
 
 
 @pytest.mark.parametrize(
@@ -131,19 +133,27 @@ def test_goleiro_fixo_no_maximo_um_por_time():
     assert all(sum(p.role == Role.GOLEIRO_FIXO for p in t.players) == 1 for t in r.teams)
 
 
-def test_mais_goleiros_que_times_gera_aviso():
+def test_mais_goleiros_que_times_ficam_todos_sem_time():
     players = make_players(zag=6, ala=6, ata=3, gk=5)
     r = run_draw(players, CFG, seed=2)
-    assert len(r.unassigned) == 2
-    assert any("mais goleiros fixos" in w for w in r.warnings)
-    assert len(all_ids(r)) == len(players) - 2
+    assert len(r.shared_goalkeepers) == 5 and not r.warnings
+    assert not any(t.has_fixed_gk for t in r.teams)
+    assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
 
 
-def test_excedentes_priorizam_times_sem_goleiro_fixo():
+def test_um_goleiro_por_time_ninguem_reveza():
     for seed in range(20):
-        r = run_draw(make_players(zag=7, ala=6, ata=3, gk=1), CFG, seed=seed)  # 16 linha: 1 excedente
-        gk_team = next(t for t in r.teams if t.has_fixed_gk)
-        assert not gk_team.has_rotation_gk
+        r = run_draw(make_players(zag=7, ala=6, ata=3, gk=3), CFG, seed=seed)  # 16 linha, 3 times, 3 goleiros
+        assert all(t.has_fixed_gk and not t.has_rotation_gk and t.line_count == 5 for t in r.teams)
+        assert len(r.reserves) == 1 and r.shared_goalkeepers == []
+
+
+def test_nivel_e_velocidade_de_goleiro_nao_entram_no_equilibrio():
+    line = make_players(zag=6, ala=6, ata=3)
+    gks = [DrawPlayer(90 + i, f"G{i}", "GOLEIRO_FIXO", level=5, speed=5) for i in range(3)]
+    r = run_draw(line + gks, DrawConfig(balance_by_skill=True), seed=1)
+    assert all(t.has_fixed_gk for t in r.teams)
+    assert all(t.strength_sum == 5 * 6 for t in r.teams)  # só a linha: 5 jogadores com 3 + 3
 
 
 # ---------- falta de jogadores em uma posição ----------
@@ -200,7 +210,10 @@ def test_nenhum_time_passa_de_5_na_linha_mais_1_no_gol(line, gks):
     for t in r.teams:
         assert t.line_count <= (5 if t.has_fixed_gk else 6)
         assert sum(p.role == Role.REVEZAMENTO for p in t.players) <= (0 if t.has_fixed_gk else 1)
-    assert sorted(all_ids(r) + r.reserves + r.unassigned) == [p.id for p in players]
+    assert all(t.has_fixed_gk for t in r.teams) == (gks == r.num_teams)
+    if gks != r.num_teams:
+        assert not any(t.has_fixed_gk for t in r.teams) and len(r.shared_goalkeepers) == gks
+    assert sorted(all_ids(r) + r.reserves + r.shared_goalkeepers) == [p.id for p in players]
 
 
 def test_reservas_sao_sorteadas_entre_todos_e_seguem_a_seed():
@@ -278,6 +291,42 @@ def test_14_de_linha_nao_sugere_3_times():
     assert [a.num_teams for a in r.alternatives] == [2]
     with pytest.raises(DrawError, match="Campeonato exige"):
         run_draw(make_players(zag=6, ala=5, ata=3), CFG, seed=1, num_teams=3)
+
+
+# ---------- time com um a menos (opção do sorteio) ----------
+
+SHORT = DrawConfig(allow_short_team=True)
+
+
+def test_um_a_menos_forma_3_times_com_14_de_linha_e_2_goleiros():
+    players = make_players(zag=6, ala=5, ata=3, gk=2)  # 16 confirmados
+    r = run_draw(players, SHORT, seed=1)
+    assert r.mode == Mode.CAMPEONATO and r.num_teams == 3
+    assert sorted(t.line_count for t in r.teams) == [4, 5, 5]
+    assert r.reserves == []
+    assert any("um a menos" in i and "time que está de fora" in i for i in r.infos)
+    assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
+    assert [a.num_teams for a in r.alternatives] == [2, 3]
+
+
+def test_um_a_menos_com_19_de_linha_forma_4_times():
+    r = run_draw(make_players(zag=8, ala=7, ata=4), SHORT, seed=1)
+    assert sorted(t.line_count for t in r.teams) == [4, 5, 5, 5] and r.reserves == []
+
+
+def test_um_a_menos_nao_muda_quando_falta_mais_de_um():
+    r = run_draw(make_players(zag=5, ala=5, ata=3), SHORT, seed=1)  # 13 de linha: 3 times exigiria 2 a menos
+    assert r.num_teams == 2
+
+
+def test_um_a_menos_nao_vale_para_2_times():
+    with pytest.raises(DrawError):
+        run_draw(make_players(zag=4, ala=3, ata=2, gk=2), SHORT, seed=1)  # 9 de linha
+
+
+def test_sem_a_opcao_14_de_linha_continua_com_2_times():
+    r = run_draw(make_players(zag=6, ala=5, ata=3, gk=2), CFG, seed=1)
+    assert r.num_teams == 2 and len(r.reserves) == 4
 
 
 def test_jogador_repetido():

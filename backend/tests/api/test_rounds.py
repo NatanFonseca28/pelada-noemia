@@ -45,7 +45,10 @@ async def test_fluxo_completo_de_sorteio(client, admin_headers):
     d = r.json()
     assert d["status"] == "FECHADA"  # sortear fecha a lista
     assert d["draw"]["mode"] == "CAMPEONATO" and len(d["teams"]) == 3
-    assert sum(len(t["players"]) for t in d["teams"]) == 17
+    # 1 goleiro fixo para 3 times: goleiro da pelada, fora dos times e fora de "não estão em time"
+    assert sum(len(t["players"]) for t in d["teams"]) == 16
+    assert len(d["shared_goalkeepers"]) == 1 and d["not_in_teams"] == []
+    assert all(t["uses_shared_gk"] or t["has_rotation_gk"] for t in d["teams"])
     seed = d["draw"]["seed"]
 
     # Reproduzível pela seed

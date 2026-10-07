@@ -92,6 +92,9 @@ class RoundService:
         } if player_ids else {}
 
         mode = draw.result.get("mode") if draw else None
+        # Goleiro fixo confirmado e fora dos times = goleiro da pelada (agarra para todos)
+        shared_gks = [SimplePlayer(player_id=p.id, name=p.display_name) for _, p in confirmed
+                      if teams and p.id not in player_ids and p.primary_position == Position.GOLEIRO_FIXO]
         team_out = []
         for t in teams:
             slots = sorted(
@@ -122,13 +125,15 @@ class RoundService:
                     line_count=sum(1 for tp in t.players if tp.role != TeamRole.GOLEIRO_FIXO),
                     has_fixed_gk=has_gk,
                     has_rotation_gk=has_rot,
-                    uses_volunteer_gk=mode == "CAMPEONATO" and not has_gk and not has_rot,
+                    uses_volunteer_gk=mode == "CAMPEONATO" and not has_gk and not has_rot and not shared_gks,
+                    uses_shared_gk=not has_gk and not has_rot and bool(shared_gks),
                 )
             )
 
         confirmed_ids = {p.id for _, p in confirmed}
         not_in_teams = [SimplePlayer(player_id=p.id, name=p.display_name)
-                        for _, p in confirmed if teams and p.id not in player_ids]
+                        for _, p in confirmed if teams and p.id not in player_ids
+                        and p.primary_position != Position.GOLEIRO_FIXO]
         no_longer = [SimplePlayer(player_id=pid, name=players[pid].display_name)
                      for pid in player_ids if pid not in confirmed_ids]
 
@@ -154,10 +159,12 @@ class RoundService:
                 infos=draw.result["infos"],
                 substitutions=draw.result["substitutions"],
                 alternatives=draw.result["alternatives"],
+                allow_short_team=draw.input_snapshot["config"].get("allow_short_team", False),
                 created_at=draw.created_at,
             ) if draw else None,
             teams=team_out,
             not_in_teams=not_in_teams,
+            shared_goalkeepers=shared_gks,
             no_longer_confirmed=no_longer,
         )
 
@@ -285,7 +292,8 @@ class RoundService:
         await self.set_attendance(round_id, user.player_id, confirmed, user, as_admin=False)
 
     # ---------------------------------------------------------- sorteio
-    async def draw(self, round_id: int, num_teams: int | None, seed: int | None, actor: User) -> None:
+    async def draw(self, round_id: int, num_teams: int | None, seed: int | None, actor: User,
+                   allow_short_team: bool = False) -> None:
         rnd = await self._round(round_id)
         if rnd.status not in EDITABLE:
             raise ValidationError("Times travados: destrave para sortear novamente")
@@ -312,6 +320,7 @@ class RoundService:
             line_per_team=settings.line_players_per_team,
             balance_by_skill=settings.balance_by_skill,
             extra_team_threshold=settings.extra_team_threshold,
+            allow_short_team=allow_short_team,
         )
         seed = seed or new_seed()
         try:

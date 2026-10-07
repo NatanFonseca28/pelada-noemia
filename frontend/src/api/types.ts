@@ -239,6 +239,8 @@ export interface TeamItem {
   has_fixed_gk: boolean
   has_rotation_gk: boolean
   uses_volunteer_gk: boolean
+  /** sem goleiro próprio: usa os goleiros fixos da pelada */
+  uses_shared_gk: boolean
 }
 
 export interface DrawAlternative {
@@ -265,6 +267,8 @@ export interface DrawInfo {
   infos: string[]
   substitutions: DrawSubstitution[]
   alternatives: DrawAlternative[]
+  /** sorteio feito com a opção "time com um a menos" */
+  allow_short_team: boolean
   created_at: string
 }
 
@@ -277,6 +281,8 @@ export interface RoundDetail extends RoundSummary {
   draw: DrawInfo | null
   teams: TeamItem[]
   not_in_teams: { player_id: number; name: string }[]
+  /** goleiros fixos sem time: agarram para os times que estiverem em campo */
+  shared_goalkeepers: { player_id: number; name: string }[]
   no_longer_confirmed: { player_id: number; name: string }[]
 }
 

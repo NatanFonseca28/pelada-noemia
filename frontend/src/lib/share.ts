@@ -15,8 +15,9 @@ export async function shareText(text: string): Promise<void> {
 
 const dayMonth = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
-export function teamsText(date: string, teams: TeamItem[]): string {
+export function teamsText(date: string, teams: TeamItem[], sharedGks: { name: string }[] = []): string {
   const lines = [`⚽ *Times da pelada de ${dayMonth(date)}*`, '']
+  if (sharedGks.length) lines.push(`🧤 *Goleiros da pelada:* ${sharedGks.map((g) => g.name).join(', ')}`, '')
   for (const t of teams) {
     lines.push(`*Time ${t.name}*`)
     for (const p of t.players) lines.push(`${p.role === 'GOLEIRO_FIXO' ? '🧤' : '•'} ${p.name}`)

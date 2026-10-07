@@ -8,7 +8,7 @@ import type { Player, RoundDetail, TeamItem, TeamPlayerItem } from '@/api/types'
 import { DeleteRoundDialog } from '@/components/rounds/DeleteRoundDialog'
 import { ShareButton } from '@/components/ShareButton'
 import { teamsText } from '@/lib/share'
-import { DRAG_MIME, TeamCard } from '@/components/TeamCard'
+import { DRAG_MIME, SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
 import { CreateTournamentPanel } from './CreateTournamentPanel'
 import { Alert, Badge, Button, Card, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, TypeLegend, cx } from '@/components/ui'
 import { filledByLabel, formatDate, positionShort, roundStatusLabel, slotPositionShort } from '@/lib/labels'
@@ -172,6 +172,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
   const editable = round.status === 'ABERTA' || round.status === 'FECHADA'
   const locked = round.status === 'TIMES_TRAVADOS'
   const d = round.draw
+  const [allowShort, setAllowShort] = useState(d?.allow_short_team ?? false)
 
   const drop = (team: TeamItem) => (playerId: number) => {
     if (!team.players.some((p) => p.player_id === playerId)) move.mutate({ player_id: playerId, team_id: team.id })
@@ -184,7 +185,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
 
   const doDraw = (num_teams?: number) => {
     if (round.teams.length && !confirm('Refazer o sorteio? Os ajustes manuais serão perdidos.')) return
-    draw.mutate(num_teams ? { num_teams } : {})
+    draw.mutate({ ...(num_teams ? { num_teams } : {}), allow_short_team: allowShort })
   }
 
   const error = draw.error ?? move.error ?? status.error
@@ -195,7 +196,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
           Sorteio dos times <TypeLegend className="font-normal" />
         </h2>
         <div className="flex flex-wrap gap-2">
-          {locked && round.teams.length > 0 && <ShareButton text={() => teamsText(round.date, round.teams)} label="Compartilhar times" />}
+          {locked && round.teams.length > 0 && <ShareButton text={() => teamsText(round.date, round.teams, round.shared_goalkeepers)} label="Compartilhar times" />}
           {editable && (
             <Button onClick={() => doDraw()} loading={draw.isPending}>
               🎲 {round.teams.length ? 'Refazer sorteio' : 'Sortear times'}
@@ -214,6 +215,15 @@ function DrawPanel({ round }: { round: RoundDetail }) {
         </div>
       </div>
 
+      {editable && (
+        <label className="mb-3 flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={allowShort} onChange={(e) => setAllowShort(e.target.checked)} />
+          <span>
+            Permitir um time com um a menos
+            <span className="block text-xs text-muted">Se faltar só 1 para formar mais um time, ele é completado na hora por alguém do time que está de fora (só com 3 times ou mais).</span>
+          </span>
+        </label>
+      )}
       {error && <div className="mb-3"><Alert>{errorText(error)}</Alert></div>}
       {!d && !error && (
         <p className="py-6 text-center text-sm text-muted">
@@ -285,6 +295,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
 
       {round.teams.length > 0 && (
         <>
+          <SharedGoalkeepers players={round.shared_goalkeepers} />
           <div className={cx('grid gap-3 sm:grid-cols-2', round.teams.length >= 3 && 'lg:grid-cols-3', round.teams.length >= 4 && 'xl:grid-cols-4')}>
               {round.teams.map((t) => (
               <TeamCard key={t.id} team={t} editable={editable} onDropPlayer={drop(t)} onPlayerClick={editable ? setSelected : undefined} />

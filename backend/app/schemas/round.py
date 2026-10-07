@@ -49,6 +49,7 @@ class TeamOut(BaseModel):
     has_fixed_gk: bool
     has_rotation_gk: bool
     uses_volunteer_gk: bool
+    uses_shared_gk: bool = False  # sem goleiro próprio: usa os goleiros fixos da pelada
 
 
 class DrawInfo(BaseModel):
@@ -60,6 +61,7 @@ class DrawInfo(BaseModel):
     infos: list[str]
     substitutions: list[dict]
     alternatives: list[dict]
+    allow_short_team: bool = False
     created_at: datetime
 
 
@@ -75,7 +77,8 @@ class RoundDetail(RoundSummary):
     my_status: str | None  # CONFIRMADO / CANCELADO / None
     draw: DrawInfo | None
     teams: list[TeamOut]
-    not_in_teams: list[SimplePlayer]  # confirmados fora dos times (entraram depois do sorteio)
+    not_in_teams: list[SimplePlayer]  # confirmados fora dos times (reservas ou entraram depois do sorteio)
+    shared_goalkeepers: list[SimplePlayer] = []  # goleiros fixos sem time: agarram para todos
     no_longer_confirmed: list[SimplePlayer]  # estão em time mas cancelaram
 
 
@@ -86,6 +89,8 @@ class AttendanceSet(BaseModel):
 class DrawRequest(BaseModel):
     num_teams: int | None = Field(default=None, ge=2, le=8)
     seed: int | None = Field(default=None, ge=1, le=2**31 - 1)
+    # Permite um time com um a menos na linha, completado por alguém do time de fora
+    allow_short_team: bool = False
 
 
 class MoveRequest(BaseModel):
