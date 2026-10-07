@@ -30,6 +30,7 @@ const countTypes = (rows: Row[]) => ({
   total: rows.length,
   mensalistas: rows.filter((r) => r.type === 'MENSALISTA').length,
   diaristas: rows.filter((r) => r.type === 'DIARISTA').length,
+  isentos: rows.filter((r) => r.type === 'ISENTO').length,
 })
 
 // ---------------------------------------------------------------- Quadro
@@ -86,6 +87,9 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <TypeDot type="DIARISTA" /> {c.diaristas} <span className="hidden sm:inline">diarista{c.diaristas === 1 ? '' : 's'}</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <TypeDot type="ISENTO" /> {c.isentos} <span className="hidden sm:inline">isento{c.isentos === 1 ? '' : 's'}</span>
                 </span>
               </p>
             </button>

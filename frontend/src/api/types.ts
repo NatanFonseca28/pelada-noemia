@@ -1,6 +1,7 @@
 export type UserRole = 'ADMIN' | 'MESARIO' | 'JOGADOR'
 export type UserStatus = 'PENDENTE' | 'ATIVO' | 'BLOQUEADO'
-export type PlayerType = 'MENSALISTA' | 'DIARISTA'
+/** ISENTO = goleiro fixo: não paga mensalidade nem diária */
+export type PlayerType = 'MENSALISTA' | 'DIARISTA' | 'ISENTO'
 export type Position = 'ZAGUEIRO' | 'ALA' | 'ATACANTE' | 'GOLEIRO_FIXO'
 export type Tiebreaker = 'PONTOS' | 'SALDO_GOLS' | 'GOLS_PRO' | 'CONFRONTO_DIRETO' | 'SORTEIO'
 export type KnockoutTieRule = 'PENALTIS' | 'MELHOR_CAMPANHA' | 'GOL_DE_OURO'

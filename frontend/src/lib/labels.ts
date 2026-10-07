@@ -7,7 +7,7 @@ export const positionLabel: Record<Position, string> = {
   GOLEIRO_FIXO: 'Goleiro fixo',
 }
 export const positionShort: Record<Position, string> = { ZAGUEIRO: 'ZAG', ALA: 'ALA', ATACANTE: 'ATA', GOLEIRO_FIXO: 'GOL' }
-export const playerTypeLabel: Record<PlayerType, string> = { MENSALISTA: 'Mensalista', DIARISTA: 'Diarista' }
+export const playerTypeLabel: Record<PlayerType, string> = { MENSALISTA: 'Mensalista', DIARISTA: 'Diarista', ISENTO: 'Isento' }
 export const roleLabel: Record<UserRole, string> = { ADMIN: 'Administrador', MESARIO: 'Mesário', JOGADOR: 'Jogador' }
 export const statusLabel: Record<UserStatus, string> = { PENDENTE: 'Pendente', ATIVO: 'Ativo', BLOQUEADO: 'Bloqueado' }
 export const tiebreakerLabel: Record<Tiebreaker, string> = {

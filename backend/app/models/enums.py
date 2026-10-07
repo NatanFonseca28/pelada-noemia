@@ -18,6 +18,7 @@ class UserStatus(StrEnum):
 class PlayerType(StrEnum):
     MENSALISTA = "MENSALISTA"
     DIARISTA = "DIARISTA"
+    ISENTO = "ISENTO"  # goleiro fixo: não paga mensalidade nem diária
 
 
 class Position(StrEnum):

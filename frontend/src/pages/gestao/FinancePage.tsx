@@ -13,7 +13,7 @@ import {
   useSetFee,
 } from '@/api/finance'
 import { usePlayers } from '@/api/queries'
-import type { CashCategory, CashEntry, CashKind, Collection, FeeRow, FinanceConfig, FinanceOverview, ImportResult } from '@/api/types'
+import type { CashCategory, CashEntry, CashKind, Collection, FeeRow, FinanceConfig, FinanceOverview, ImportResult, PlayerType } from '@/api/types'
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -107,6 +107,15 @@ function FeeCellEditor({ cell, monthlyFee, onClose, onSaved }: { cell: EditingCe
       </div>
     </form>
   )
+}
+
+const GROUP_STYLE: Record<PlayerType, { row: string; text: string; border: string; title: string; note?: string }> = {
+  MENSALISTA: { row: 'bg-mensalista/10', text: 'text-mensalista', border: 'border-l-mensalista', title: 'Mensalistas' },
+  DIARISTA: {
+    row: 'bg-diarista/10', text: 'text-diarista', border: 'border-l-diarista', title: 'Diaristas',
+    note: 'pagam por dia, no caixa; não entram em inadimplência',
+  },
+  ISENTO: { row: 'bg-muted/10', text: 'text-muted', border: 'border-l-muted', title: 'Isentos', note: 'goleiros fixos: não pagam' },
 }
 
 type CellState = 'paid' | 'partial' | 'marker' | 'open' | 'late' | 'future' | 'none'
@@ -227,19 +236,19 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
             {rows.map((row, i) => (
               <Fragment key={row.player_id}>
               {(i === 0 || rows[i - 1].type !== row.type) && (
-                <tr className={cx('border-b border-line', row.type === 'MENSALISTA' ? 'bg-mensalista/10' : 'bg-diarista/10')}>
+                <tr className={cx('border-b border-line', GROUP_STYLE[row.type].row)}>
                   <th colSpan={data.months.length + 2} scope="colgroup" className="sticky left-0 px-3 py-1.5 text-left text-sm">
-                    <span className={cx('inline-flex items-center gap-2 font-display text-base font-bold', row.type === 'MENSALISTA' ? 'text-mensalista' : 'text-diarista')}>
+                    <span className={cx('inline-flex items-center gap-2 font-display text-base font-bold', GROUP_STYLE[row.type].text)}>
                       <TypeDot type={row.type} />
-                      {row.type === 'MENSALISTA' ? 'Mensalistas' : 'Diaristas'} ({rows.filter((r) => r.type === row.type).length})
+                      {GROUP_STYLE[row.type].title} ({rows.filter((r) => r.type === row.type).length})
                     </span>
-                    {row.type === 'DIARISTA' && <span className="ml-2 text-xs font-normal text-muted">pagam por dia, no caixa; não entram em inadimplência</span>}
+                    {GROUP_STYLE[row.type].note && <span className="ml-2 text-xs font-normal text-muted">{GROUP_STYLE[row.type].note}</span>}
                   </th>
                 </tr>
               )}
               <tr className="border-b border-line">
                 <td
-                  className={cx('sticky left-0 z-10 max-w-[200px] border-l-4 bg-surface px-3 py-1.5 font-medium', row.type === 'MENSALISTA' ? 'border-l-mensalista' : 'border-l-diarista')}
+                  className={cx('sticky left-0 z-10 max-w-[200px] border-l-4 bg-surface px-3 py-1.5 font-medium', GROUP_STYLE[row.type].border)}
                   title={row.name}
                 >
                   <PlayerName name={row.name} type={row.type} className="flex" />

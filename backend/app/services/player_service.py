@@ -2,7 +2,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.models.enums import Position
+from app.models.enums import PlayerType, Position
 from app.models.player import Player
 from app.models.user import User
 from app.repositories.player_repo import PlayerRepository
@@ -27,7 +27,9 @@ class PlayerService:
         return player
 
     async def create(self, data: PlayerCreate, actor: User) -> Player:
-        player = self.players.add(Player(**data.model_dump()))
+        player = Player(**data.model_dump())
+        _apply_exemption(player)
+        self.players.add(player)
         await self.session.flush()
         await audit_service.record(
             self.session, user_id=actor.id, action="CREATE", entity="player", entity_id=player.id,
@@ -47,6 +49,7 @@ class PlayerService:
             setattr(player, key, value)
         if player.primary_position == Position.GOLEIRO_FIXO:
             player.secondary_position = None
+        _apply_exemption(player)
         try:
             _validate_positions(player.primary_position, player.secondary_position)
         except ValueError as exc:
@@ -103,3 +106,11 @@ class PlayerService:
         await self.session.commit()
         await self.session.refresh(player)
         return player
+
+
+def _apply_exemption(player: Player) -> None:
+    """Goleiro fixo é sempre isento; isento é só para goleiro fixo."""
+    if player.primary_position == Position.GOLEIRO_FIXO:
+        player.type = PlayerType.ISENTO
+    elif player.type == PlayerType.ISENTO:
+        raise ValidationError("Isento é só para goleiro fixo: escolha mensalista ou diarista")

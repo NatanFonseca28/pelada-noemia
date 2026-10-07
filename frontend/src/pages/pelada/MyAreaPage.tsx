@@ -29,6 +29,13 @@ function Situation({ d }: { d: MyFinance }) {
       toast({ message: 'Não foi possível copiar', tone: 'error' })
     }
   }
+  if (d.type === 'ISENTO') {
+    return (
+      <Card className="p-4">
+        <p className="font-medium">Você é goleiro fixo: isento de mensalidade e de diária.</p>
+      </Card>
+    )
+  }
   if (d.type === 'DIARISTA') {
     return (
       <Card className="p-4">

@@ -64,9 +64,10 @@ function PlayerForm({ player, onDone }: { player: Player | null; onDone: () => v
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Tipo">
-          <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as PlayerType })}>
-            {(['MENSALISTA', 'DIARISTA'] as PlayerType[]).map((t) => (
-              <option key={t} value={t}>{playerTypeLabel[t]}</option>
+          {/* Goleiro fixo é sempre isento (regra também garantida pela API) */}
+          <select className="input" value={isGk ? 'ISENTO' : form.type} disabled={isGk} onChange={(e) => setForm({ ...form, type: e.target.value as PlayerType })}>
+            {((isGk ? ['ISENTO'] : ['MENSALISTA', 'DIARISTA']) as PlayerType[]).map((t) => (
+              <option key={t} value={t}>{t === 'ISENTO' ? 'Isento (goleiro)' : playerTypeLabel[t]}</option>
             ))}
           </select>
         </Field>
@@ -93,6 +94,8 @@ function PlayerForm({ player, onDone }: { player: Player | null; onDone: () => v
                 ...form,
                 primary_position: primary,
                 secondary_position: form.secondary_position === primary ? null : form.secondary_position,
+                // saiu do gol: deixa de ser isento (mensalista por padrão; dá para trocar)
+                type: primary === 'GOLEIRO_FIXO' ? 'ISENTO' : form.type === 'ISENTO' ? 'MENSALISTA' : form.type,
               })
             }}
           >

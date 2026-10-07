@@ -74,7 +74,7 @@ async def seed(demo: bool, admin_only: bool = False) -> None:
             player = Player(
                 name=name,
                 nickname=nick,
-                type=PlayerType.MENSALISTA if i % 3 else PlayerType.DIARISTA,
+                type=PlayerType.ISENTO if primary == G else PlayerType.MENSALISTA if i % 3 else PlayerType.DIARISTA,
                 primary_position=primary,
                 secondary_position=secondary,
                 skill_level=level,

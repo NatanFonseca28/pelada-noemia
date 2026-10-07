@@ -95,9 +95,10 @@ class FinanceService:
         for f in fees:
             cells[f.player_id][month_key(f.month)] = FeeCellOut(amount=f.amount, marker=f.marker)
 
-        # Ordem: mensalistas antes de diaristas; em cada grupo, quem tem pagamento no ano primeiro, depois por nome
+        # Ordem: mensalistas, diaristas e isentos; em cada grupo, quem tem pagamento no ano primeiro, depois por nome
         first_paid = {pid: min(c) for pid, c in cells.items()}
-        players.sort(key=lambda p: (p.type != PlayerType.MENSALISTA, p.id not in first_paid, p.display_name.casefold()))
+        order = list(PlayerType)
+        players.sort(key=lambda p: (order.index(p.type), p.id not in first_paid, p.display_name.casefold()))
         overdue = await self.delinquency()
         ref_months = list(reference_months(today_local()))
         rows = [

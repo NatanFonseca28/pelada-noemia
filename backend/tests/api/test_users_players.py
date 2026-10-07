@@ -158,3 +158,24 @@ async def test_excluir_usuario(client, admin_headers, superadmin_headers, jogado
         sup = await s.scalar(select(User).where(User.email == "super@test.com"))
     assert (await client.delete(f"/api/users/{me.id}", headers=admin_headers)).status_code == 422
     assert (await client.delete(f"/api/users/{sup.id}", headers=admin_headers)).status_code == 403
+
+
+async def test_goleiro_fixo_e_isento(client, admin_headers):
+    r = await client.post("/api/players", json={"name": "Goleiro Isento", "type": "DIARISTA",
+                                                 "primary_position": "GOLEIRO_FIXO"}, headers=admin_headers)
+    assert r.status_code == 201, r.text
+    pid = r.json()["id"]
+    assert r.json()["type"] == "ISENTO"
+
+    # Saiu do gol: precisa escolher mensalista ou diarista
+    r = await client.patch(f"/api/players/{pid}", json={"primary_position": "ALA"}, headers=admin_headers)
+    assert r.status_code == 422
+    r = await client.patch(f"/api/players/{pid}", json={"primary_position": "ALA", "type": "MENSALISTA"},
+                           headers=admin_headers)
+    assert r.status_code == 200 and r.json()["type"] == "MENSALISTA"
+
+    # Jogador de linha não pode ser isento
+    r = await client.patch(f"/api/players/{pid}", json={"type": "ISENTO"}, headers=admin_headers)
+    assert r.status_code == 422
+    r = await client.patch(f"/api/players/{pid}", json={"primary_position": "GOLEIRO_FIXO"}, headers=admin_headers)
+    assert r.json()["type"] == "ISENTO"
