@@ -339,6 +339,8 @@ export interface MatchItem {
   home_penalties: number | null
   away_penalties: number | null
   winner_team_id: number | null
+  /** quem começa com a bola: grupos divididos igualmente; mata-mata = melhor campanha */
+  kickoff_team_id: number | null
   /** tempo da partida medido pelo cronômetro do mesário (opcional) */
   started_at: string | null
   ended_at: string | null

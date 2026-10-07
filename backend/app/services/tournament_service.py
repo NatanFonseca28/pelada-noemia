@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.domain.formats import FORMAT_INFO, FormatCode, Stage, TimeConfig, build_matches, suggest_formats
+from app.domain.kickoff import KickoffMatch, assign_kickoffs
 from app.domain.standings import (
     KnockoutResult,
     PointsConfig,
@@ -384,6 +385,11 @@ class TournamentService:
         def label(team_id, source):
             return teams[team_id].name if team_id in teams else source_label(source)
 
+        kickoffs = assign_kickoffs(
+            [KickoffMatch(id=m.id, seq=m.seq, stage=str(m.stage), home=m.home_team_id, away=m.away_team_id)
+             for m in matches],
+            campaign_ranking(tables) if t.format_code != FormatCode.PELADA_NORMAL else {},
+        )
         match_out = [
             MatchOut(
                 id=m.id, seq=m.seq, code=m.code, stage=m.stage, leg=m.leg, group=group_name.get(m.group_id),
@@ -393,7 +399,7 @@ class TournamentService:
                 planned_seconds=m.planned_seconds, goal_limit=m.goal_limit, status=m.status,
                 home_score=m.home_score, away_score=m.away_score,
                 home_penalties=m.home_penalties, away_penalties=m.away_penalties,
-                winner_team_id=m.winner_team_id, started_at=m.started_at,
+                winner_team_id=m.winner_team_id, kickoff_team_id=kickoffs.get(m.id), started_at=m.started_at,
                 elapsed_before_pause=m.elapsed_before_pause, ended_at=m.ended_at, version=m.version,
             )
             for m in matches

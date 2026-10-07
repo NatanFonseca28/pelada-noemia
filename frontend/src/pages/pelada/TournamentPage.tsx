@@ -8,6 +8,7 @@ import { useTournament, useTournamentActions } from '@/api/tournaments'
 import type { MatchItem, Tournament } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Confetti } from '@/components/Confetti'
+import { KickoffNote } from '@/components/KickoffNote'
 import { MatchSheetPanel } from '@/components/MatchSheetPanel'
 import { useConfirm } from '@/contexts/feedback'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
@@ -133,6 +134,7 @@ function MatchCard({ match, isNext, canEdit, onEdit, onReopen, onSheet }: {
             : minutesText(match.planned_seconds).replace(' min', '′')
         }
       />
+      <KickoffNote match={match} className="mt-2" />
       {duration && (
         <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted">
           <Timer size={14} strokeWidth={ICON_STROKE} aria-hidden />

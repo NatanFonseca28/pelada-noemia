@@ -83,6 +83,8 @@ class MatchOut(BaseModel):
     home_penalties: int | None
     away_penalties: int | None
     winner_team_id: int | None
+    # quem começa com a bola (grupos: dividido igual; mata-mata: melhor campanha)
+    kickoff_team_id: int | None = None
     started_at: datetime | None
     elapsed_before_pause: int
     ended_at: datetime | None

@@ -182,3 +182,28 @@ async def test_finalizar_sumula_grava_tempo_com_e_sem_pausas(client, admin_heade
     assert (await client.post(f"/api/matches/{m['id']}/result", json=bad, headers=admin_headers)).status_code == 422
     # jogador não reabre
     assert (await client.post(f"/api/matches/{m['id']}/reopen", headers=jogador_headers)).status_code == 403
+
+
+async def test_quem_comeca_com_a_bola(client, admin_headers):
+    from collections import Counter
+
+    rid = await locked_round(client, admin_headers, 15)
+    t = (await client.post(f"/api/rounds/{rid}/tournament", json={"format_code": "GRUPO_REPESCAGEM_FINAL"},
+                           headers=admin_headers)).json()
+    groups = [m for m in t["matches"] if m["stage"] == "GRUPO"]
+    # fase de grupos: cada time dá a saída o mesmo número de vezes
+    assert all(m["kickoff_team_id"] in (m["home"]["id"], m["away"]["id"]) for m in groups)
+    assert len(set(Counter(m["kickoff_team_id"] for m in groups).values())) == 1
+    # mata-mata ainda sem times definidos: sem saída
+    assert all(m["kickoff_team_id"] is None for m in t["matches"] if m["stage"] != "GRUPO")
+
+    for m, (h, a) in zip(groups, [(1, 0), (2, 0), (1, 0)], strict=True):
+        await result(client, admin_headers, m["id"], h, a)
+    t = (await client.get(f"/api/tournaments/{t['id']}", headers=admin_headers)).json()
+    ranking = [row["team"]["id"] for row in t["groups"][0]["standings"]]  # 1º, 2º, 3º
+    repescagem = t["matches"][3]  # 2º × 3º
+    assert repescagem["kickoff_team_id"] == ranking[1]  # 2º colocado (melhor campanha que o 3º)
+    await result(client, admin_headers, repescagem["id"], 0, 1)  # o 3º vence a repescagem
+    t = (await client.get(f"/api/tournaments/{t['id']}", headers=admin_headers)).json()
+    final = next(m for m in t["matches"] if m["stage"] == "FINAL")
+    assert final["kickoff_team_id"] == ranking[0]  # 1º colocado sempre sai na final
