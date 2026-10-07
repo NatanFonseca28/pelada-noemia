@@ -1,0 +1,39 @@
+# Backup diário do banco de produção (Neon), CRIPTOGRAFADO antes de sair do runner.
+# O arquivo .gpg fica como artifact por 30 dias; sem a BACKUP_PASSPHRASE ele é inútil.
+# Restaurar: sh deploy/restaurar-backup.sh (ver PUBLICAR-RENDER-NEON-VERCEL.md).
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 03:00 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: postgres:16
+    steps:
+      - name: Dump e criptografia
+        env:
+          NEON_BACKUP_URL: ${{ secrets.NEON_BACKUP_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -eu
+          apt-get update -qq && apt-get install -y -qq gnupg >/dev/null
+          FILE="pelada-$(date -u +%Y-%m-%d).dump"
+          pg_dump "$NEON_BACKUP_URL" -Fc --no-owner --no-privileges -f "$FILE"
+          echo "Tamanho do dump: $(du -h "$FILE" | cut -f1)"
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 -o "$FILE.gpg" "$FILE"
+          shred -u "$FILE"
+          echo "FILE=$FILE.gpg" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FILE }}
+          path: ${{ env.FILE }}
+          retention-days: 30
+          if-no-files-found: error
