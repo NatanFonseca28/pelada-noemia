@@ -92,6 +92,14 @@ export function useRejectUser() {
   })
 }
 
+export function useDeleteUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api(`/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
 // ---------- Configurações ----------
 export function useSettings() {
   return useQuery({ queryKey: keys.settings, queryFn: () => api<Settings>('/settings') })

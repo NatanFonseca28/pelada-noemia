@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { Phone } from 'lucide-react'
+import { Phone, Trash2 } from 'lucide-react'
 import { ApiError } from '@/api/client'
-import { useApproveUser, useCreateUser, usePlayers, useRejectUser, useUpdateUser, useUsers } from '@/api/queries'
+import { useApproveUser, useCreateUser, useDeleteUser, usePlayers, useRejectUser, useUpdateUser, useUsers } from '@/api/queries'
 import type { Player, User, UserRole, UserStatus } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
-import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, cx } from '@/components/ui'
+import { useConfirm, useToast } from '@/contexts/feedback'
+import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, cx, errorMessage } from '@/components/ui'
 import { formatDateTime, roleLabel, statusLabel } from '@/lib/labels'
 import { formatPhone } from '@/lib/phone'
 
@@ -166,6 +167,31 @@ export function UsersPage() {
   const others = (users ?? []).filter((u) => u.status !== 'PENDENTE')
   const playerName = (id: number | null) => players.find((p) => p.id === id)?.display_name
   const playerPhone = (id: number | null) => players.find((p) => p.id === id)?.phone ?? null
+  const { user: me } = useAuth()
+  const remove = useDeleteUser()
+  const confirm = useConfirm()
+  const toast = useToast()
+
+  async function onDelete(u: User) {
+    const linked = u.player_id ? playerName(u.player_id) : null
+    const ok = await confirm({
+      title: `Excluir ${u.name}?`,
+      description: (
+        <>
+          A conta <strong>{u.email}</strong> deixa de existir e as sessões abertas caem na hora.
+          {linked ? ` O jogador ${linked} continua no elenco.` : ''} O histórico (auditoria, súmulas, lançamentos) é mantido.
+          Isso não pode ser desfeito.
+        </>
+      ),
+      confirmLabel: 'Excluir usuário',
+      danger: true,
+    })
+    if (!ok) return
+    remove.mutate(u.id, {
+      onSuccess: () => toast({ message: `${u.name} excluído`, tone: 'success' }),
+      onError: (err) => toast({ message: errorMessage(err, 'Não foi possível excluir'), tone: 'error' }),
+    })
+  }
 
   return (
     <>
@@ -214,6 +240,17 @@ export function UsersPage() {
                 )}
               </div>
               <Button size="sm" variant="secondary" onClick={() => setEditing(u)}>Editar</Button>
+              {u.id !== me?.id && !u.is_superadmin && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(u)}
+                  aria-label={`Excluir ${u.name}`}
+                  title="Excluir usuário"
+                  className="press grid h-11 w-11 place-items-center rounded-btn text-muted hover:bg-danger/10 hover:text-danger-ink"
+                >
+                  <Trash2 size={18} strokeWidth={ICON_STROKE} aria-hidden />
+                </button>
+              )}
             </div>
           ))}
         </Card>

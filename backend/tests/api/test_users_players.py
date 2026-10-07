@@ -132,3 +132,29 @@ async def test_nivel_tecnico_visivel_so_para_admin(client, admin_headers, jogado
     assert (await client.get(f"/api/players/{pid}", headers=admin_headers)).json()["skill_level"] == 3
     assert (await client.get(f"/api/players/{pid}", headers=jogador_headers)).json()["skill_level"] is None
     assert (await client.get("/api/players", headers=jogador_headers)).json()[0]["skill_level"] is None
+
+
+async def test_excluir_usuario(client, admin_headers, superadmin_headers, jogador_headers, session_factory):
+    from sqlalchemy import select
+
+    from app.models.player import Player
+    from app.models.user import User
+
+    pid = (await client.post("/api/players", json=PLAYER, headers=admin_headers)).json()["id"]
+    body = {"email": "sai@test.com", "name": "Vai Sair", "password": "Bola-no-angulo-99", "player_id": pid}
+    uid = (await client.post("/api/users", json=body, headers=admin_headers)).json()["id"]
+
+    assert (await client.delete(f"/api/users/{uid}", headers=jogador_headers)).status_code == 403
+    assert (await client.delete(f"/api/users/{uid}", headers=admin_headers)).status_code == 204
+    assert (await client.get(f"/api/users/{uid}", headers=admin_headers)).status_code == 404
+    async with session_factory() as s:
+        assert await s.get(Player, pid) is not None  # o jogador continua no elenco
+    logs = (await client.get("/api/audit", params={"entity": "user"}, headers=superadmin_headers)).json()
+    assert any(log["action"] == "DELETE" and log["before"]["email"] == "sai@test.com" for log in logs)
+
+    # não exclui a própria conta nem a do superadmin
+    async with session_factory() as s:
+        me = await s.scalar(select(User).where(User.email == "admin@test.com"))
+        sup = await s.scalar(select(User).where(User.email == "super@test.com"))
+    assert (await client.delete(f"/api/users/{me.id}", headers=admin_headers)).status_code == 422
+    assert (await client.delete(f"/api/users/{sup.id}", headers=admin_headers)).status_code == 403

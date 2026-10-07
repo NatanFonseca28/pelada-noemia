@@ -36,3 +36,9 @@ async def approve_user(user_id: int, data: UserApprove, admin: AdminUser, sessio
 @router.post("/{user_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
 async def reject_user(user_id: int, admin: AdminUser, session: SessionDep):
     await UserService(session).reject(user_id, admin)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: int, admin: AdminUser, session: SessionDep):
+    """Exclui o usuário (não a própria conta nem a do superadmin). O jogador vinculado continua no elenco."""
+    await UserService(session).delete(user_id, admin)

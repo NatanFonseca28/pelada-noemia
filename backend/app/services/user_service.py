@@ -110,6 +110,22 @@ class UserService:
         await self.session.refresh(user)
         return user
 
+    async def delete(self, user_id: int, actor: User) -> None:
+        """Exclui a conta. O jogador vinculado continua no elenco; auditoria, súmulas e lançamentos feitos por ela
+        ficam no histórico (sem o vínculo). Sessões abertas caem junto."""
+        user = await self.get(user_id)
+        if user.id == actor.id:
+            raise ValidationError("Você não pode excluir a própria conta")
+        if user.is_superadmin:
+            raise ForbiddenError("A conta do superadmin não pode ser excluída")
+        await audit_service.record(
+            self.session, user_id=actor.id, action="DELETE", entity="user", entity_id=user.id,
+            before=audit_service.snapshot(user),
+        )
+        security_event("user_deleted", user_id=user.id, by=actor.id)
+        await self.users.delete(user)
+        await self.session.commit()
+
     async def reject(self, user_id: int, actor: User) -> None:
         """Recusa um autocadastro pendente (remove o registro)."""
         user = await self.get(user_id)
