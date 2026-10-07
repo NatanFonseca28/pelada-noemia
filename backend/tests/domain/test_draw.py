@@ -64,10 +64,10 @@ def test_sobras_viram_revezamento_um_por_time(extra):
     r = run_draw(players, CFG, seed=7)
     assert r.num_teams == 3
     rotation = [p for t in r.teams for p in t.players if p.role == Role.REVEZAMENTO]
-    assert len(rotation) == extra
-    per_team = sorted(sum(p.role == Role.REVEZAMENTO for p in t.players) for t in r.teams)
-    assert max(per_team) - min(per_team) <= 1  # um por time antes de repetir
-    assert sorted(all_ids(r)) == [p.id for p in players]
+    assert len(rotation) == min(extra, 3)  # no máximo um por time
+    assert len(r.reserves) == extra - len(rotation)
+    assert all(t.line_count <= 6 for t in r.teams)
+    assert sorted(all_ids(r) + r.reserves) == [p.id for p in players]
 
 
 def test_pelada_normal_com_2_times_e_2_excedentes():
@@ -174,7 +174,43 @@ def test_todos_sem_posicao_ainda_sorteia():
     assert sorted(t.line_count for t in r.teams) == [5, 6, 6]
 
 
-# ---------- equilíbrio por nível ----------
+# ---------- teto de 5 na linha + 1 no gol ----------
+
+def test_16_confirmados_com_2_goleiros_nao_passa_de_5_mais_1():
+    """14 de linha + 2 goleiros fixos: antes saíam 2 times com 7 na linha."""
+    players = make_players(zag=6, ala=5, ata=3, gk=2)
+    r = run_draw(players, CFG, seed=1)
+    assert r.mode == Mode.PELADA_NORMAL and r.num_teams == 2
+    assert all(t.has_fixed_gk and t.line_count == 5 and not t.has_rotation_gk for t in r.teams)
+    assert len(r.reserves) == 4
+    assert any("reserva" in w for w in r.warnings)
+    assert sorted(all_ids(r) + r.reserves) == [p.id for p in players]
+
+
+@pytest.mark.parametrize("line", range(10, 31))
+@pytest.mark.parametrize("gks", range(0, 5))
+def test_nenhum_time_passa_de_5_na_linha_mais_1_no_gol(line, gks):
+    zag, ala = line * 2 // 5, line * 2 // 5
+    players = make_players(zag=zag, ala=ala, ata=line - zag - ala, gk=gks)
+    try:
+        r = run_draw(players, CFG, seed=line * 10 + gks)
+    except DrawError:
+        assert line < 12 and gks + line - 10 < 2  # só bloqueia sem goleiro para os 2 times
+        return
+    for t in r.teams:
+        assert t.line_count <= (5 if t.has_fixed_gk else 6)
+        assert sum(p.role == Role.REVEZAMENTO for p in t.players) <= (0 if t.has_fixed_gk else 1)
+    assert sorted(all_ids(r) + r.reserves + r.unassigned) == [p.id for p in players]
+
+
+def test_reservas_sao_sorteadas_entre_todos_e_seguem_a_seed():
+    players = make_players(zag=6, ala=5, ata=3, gk=2)
+    reserves = {tuple(run_draw(players, CFG, seed=s).reserves) for s in range(30)}
+    assert len({pid for rs in reserves for pid in rs}) > 6  # não é sempre o mesmo grupo
+    assert run_draw(players, CFG, seed=3).reserves == run_draw(players, CFG, seed=3).reserves
+
+
+# ---------- equilíbrio por nível e velocidade ----------
 
 def test_equilibrar_por_nivel_reduz_diferenca():
     players = [DrawPlayer(i, f"P{i}", ("ZAGUEIRO", "ALA", "ATACANTE")[i % 3] if i % 5 else "ATACANTE",
@@ -188,6 +224,26 @@ def test_equilibrar_por_nivel_reduz_diferenca():
         spread_random.append(max(t.level_sum for t in n.teams) - min(t.level_sum for t in n.teams))
     assert sum(spread_balanced) < sum(spread_random)
     assert max(spread_balanced) <= 3
+
+
+def test_equilibrar_leva_velocidade_em_conta():
+    # mesmo nível para todos: só a velocidade diferencia
+    players = [DrawPlayer(i, f"P{i}", ("ZAGUEIRO", "ALA", "ATACANTE")[i % 3] if i % 5 else "ATACANTE",
+                          level=3, speed=(i % 5) + 1) for i in range(1, 21)]
+    spread_balanced = []
+    spread_random = []
+    for seed in range(30):
+        b = run_draw(players, DrawConfig(balance_by_skill=True), seed=seed)
+        n = run_draw(players, DrawConfig(), seed=seed)
+        spread_balanced.append(max(t.speed_sum for t in b.teams) - min(t.speed_sum for t in b.teams))
+        spread_random.append(max(t.speed_sum for t in n.teams) - min(t.speed_sum for t in n.teams))
+    assert sum(spread_balanced) < sum(spread_random)
+    assert max(spread_balanced) <= 3
+
+
+def test_forca_soma_nivel_e_velocidade_com_peso_igual():
+    assert DrawPlayer(1, "A", "ALA", level=5, speed=1).strength == DrawPlayer(2, "B", "ALA", level=1, speed=5).strength
+    assert DrawPlayer(3, "C", "ALA").strength == 6  # não informado conta 3 + 3
 
 
 # ---------- reprodutibilidade ----------
@@ -209,7 +265,8 @@ def test_seeds_diferentes_mudam_o_resultado():
 
 def test_sobra_grande_sugere_alternativas():
     r = run_draw(make_players(zag=8, ala=7, ata=4), CFG, seed=1)  # 19 de linha
-    assert [(a.num_teams, a.line_sizes) for a in r.alternatives] == [(3, [7, 6, 6]), (4, [5, 5, 5, 4])]
+    assert [(a.num_teams, a.line_sizes) for a in r.alternatives] == [(3, [6, 6, 6]), (4, [5, 5, 5, 4])]
+    assert "1 reserva" in r.alternatives[0].description
     r4 = run_draw(make_players(zag=8, ala=7, ata=4), CFG, seed=1, num_teams=4)
     assert sorted(t.line_count for t in r4.teams) == [4, 5, 5, 5]
     assert r4.alternatives == []

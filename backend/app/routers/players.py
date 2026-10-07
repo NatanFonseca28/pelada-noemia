@@ -12,8 +12,8 @@ from app.services.storage import read_limited
 router = APIRouter(prefix="/players", tags=["Jogadores"])
 
 
-# Campos internos da gestão: nível técnico (sorteio equilibrado) e contato (cobrança por WhatsApp)
-ADMIN_ONLY_FIELDS = {"skill_level": None, "phone": None, "whatsapp_opt_in": False}
+# Campos internos da gestão: nível técnico e velocidade (sorteio equilibrado) e contato (cobrança por WhatsApp)
+ADMIN_ONLY_FIELDS = {"skill_level": None, "speed": None, "phone": None, "whatsapp_opt_in": False}
 
 
 def _visible(player: Player, user: User) -> PlayerOut:

@@ -9,10 +9,12 @@ Regras (ver plano, seção 0 e "Regras do sorteio"):
  4. Distribuição circular por posição até a cota 2 ZAG / 2 ALA / 1 ATA.
  5. Vagas sem jogador da posição: 1º quem tem a posição como secundária, depois jogadores
     sem posição definida, depois qualquer restante. Tudo registrado em `substitutions`.
- 6. Excedentes (linha mod 5) vão um por time, priorizando times sem goleiro fixo,
-    marcados como revezamento no gol.
+ 6. Excedentes (linha mod 5) vão no máximo um por time, só para times sem goleiro fixo,
+    marcados como revezamento no gol: todo time é 5 na linha + 1 no gol. Quem não couber
+    fica de reserva (sorteado entre todos de linha, antes da distribuição).
  7. Goleiros fixos sorteados entre os times, no máximo um por time; sobras geram aviso.
- 8. "Equilibrar por nível": ordem serpentina pelo nível dentro de cada posição.
+ 8. "Equilibrar por nível e velocidade": força = nível + velocidade (1 a 5 cada, 3 se não
+    informado). Dentro de cada posição, o mais forte disponível vai para o time mais fraco.
  9. A seed e o resultado são devolvidos para persistência/auditoria.
 10. Sobra grande → `alternatives` para o admin decidir.
 """
@@ -20,8 +22,9 @@ import random
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
-ALGORITHM_VERSION = "1.0"
+ALGORITHM_VERSION = "2.0"
 DEFAULT_LEVEL = 3
+DEFAULT_SPEED = 3
 
 LINE_POSITIONS = ("ZAGUEIRO", "ALA", "ATACANTE")
 GOALKEEPER = "GOLEIRO_FIXO"
@@ -66,10 +69,20 @@ class DrawPlayer:
     primary: str | None  # None = posição a definir
     secondary: str | None = None
     level: int | None = None
+    speed: int | None = None
 
     @property
     def lvl(self) -> int:
         return self.level or DEFAULT_LEVEL
+
+    @property
+    def spd(self) -> int:
+        return self.speed or DEFAULT_SPEED
+
+    @property
+    def strength(self) -> int:
+        """Força usada no equilíbrio: nível técnico e velocidade com o mesmo peso."""
+        return self.lvl + self.spd
 
 
 @dataclass(frozen=True)
@@ -100,6 +113,11 @@ class TeamSlot:
     role: Role
     filled_by: FilledBy
     level: int
+    speed: int
+
+    @property
+    def strength(self) -> int:
+        return self.level + self.speed
 
 
 @dataclass
@@ -121,9 +139,20 @@ class Team:
     def line_count(self) -> int:
         return sum(1 for p in self.players if p.role != Role.GOLEIRO_FIXO)
 
+    def _line(self) -> list[TeamSlot]:
+        return [p for p in self.players if p.role != Role.GOLEIRO_FIXO]
+
     @property
     def level_sum(self) -> int:
-        return sum(p.level for p in self.players if p.role != Role.GOLEIRO_FIXO)
+        return sum(p.level for p in self._line())
+
+    @property
+    def speed_sum(self) -> int:
+        return sum(p.speed for p in self._line())
+
+    @property
+    def strength_sum(self) -> int:
+        return sum(p.strength for p in self._line())
 
 
 @dataclass
@@ -155,6 +184,7 @@ class DrawResult:
     infos: list[str]
     alternatives: list[Alternative]
     unassigned: list[int]  # goleiros fixos sem time
+    reserves: list[int]  # jogadores de linha que não couberam em 5 + 1
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -164,6 +194,8 @@ class DrawResult:
                 uses_volunteer_gk=self.mode == Mode.CAMPEONATO and not team.has_fixed_gk and not team.has_rotation_gk,
                 line_count=team.line_count,
                 level_sum=team.level_sum,
+                speed_sum=team.speed_sum,
+                strength_sum=team.strength_sum,
             )
         return data
 
@@ -175,8 +207,8 @@ def _order_candidates(players: list[DrawPlayer], rng: random.Random, balance: bo
     shuffled = list(players)
     rng.shuffle(shuffled)
     if balance:
-        # estável: empates de nível mantêm a ordem aleatória acima
-        shuffled.sort(key=lambda p: p.lvl, reverse=True)
+        # estável: empates de força mantêm a ordem aleatória acima
+        shuffled.sort(key=lambda p: p.strength, reverse=True)
     return shuffled
 
 
@@ -206,26 +238,32 @@ def _quotas(sizes: list[int], config: DrawConfig) -> list[dict[str, int]]:
     return quotas
 
 
-def _team_order(n: int, round_no: int, balance: bool, offset: int) -> list[int]:
-    base = [(offset + i) % n for i in range(n)]
-    if balance and round_no % 2 == 1:
-        return list(reversed(base))  # serpentina
-    return base
+def _plan(line_total: int, goalkeepers: int, num_teams: int, per_team: int) -> tuple[list[int], int, int]:
+    """(linha base por time, excedentes que revezam no gol, reservas).
+
+    Cada time tem no máximo `per_team` na linha + 1 no gol. Só time sem goleiro fixo
+    recebe um excedente para revezar no gol; o que passar disso fica de reserva.
+    """
+    sizes = _line_sizes(line_total, num_teams, per_team)
+    surplus = line_total - sum(sizes)
+    rotation = min(surplus, num_teams - min(goalkeepers, num_teams))
+    return sizes, rotation, surplus - rotation
 
 
-def _describe(num_teams: int, sizes: list[int], per_team: int) -> str:
+def _describe(num_teams: int, sizes: list[int], per_team: int, reserves: int) -> str:
     mode = "pelada normal" if num_teams == 2 else "campeonato"
     sizes_txt = "/".join(str(s) for s in sizes)
     short = sum(1 for s in sizes if s < per_team)
     extra = f", {short} time(s) completado(s) por voluntário" if short else ""
-    return f"{num_teams} times ({sizes_txt} na linha) — {mode}{extra}"
+    bench = f", {reserves} reserva(s)" if reserves else ""
+    return f"{num_teams} times ({sizes_txt} na linha) — {mode}{extra}{bench}"
 
 
 def max_teams(line_total: int, per_team: int) -> int:
     return -(-line_total // per_team)  # ceil
 
 
-def suggest_alternatives(line_total: int, config: DrawConfig) -> list[Alternative]:
+def suggest_alternatives(line_total: int, config: DrawConfig, goalkeepers: int = 0) -> list[Alternative]:
     """Formações possíveis quando a sobra é grande (regra 10)."""
     per = config.line_per_team
     n = line_total // per
@@ -236,11 +274,11 @@ def suggest_alternatives(line_total: int, config: DrawConfig) -> list[Alternativ
     for teams in (n, n + 1):
         if teams > max_teams(line_total, per) or (teams >= 3 and line_total < 3 * per):
             continue  # campeonato exige ao menos 3 times completos de linha (15 jogadores)
-        base = _line_sizes(line_total, teams, per)
-        extra = line_total - sum(base)
-        sizes = [s + (1 if i < extra % teams else 0) + extra // teams for i, s in enumerate(base)]
+        base, rotation, reserves = _plan(line_total, goalkeepers, teams, per)
+        # o revezamento vai para os times sem goleiro fixo, que ficam no fim da lista
+        sizes = [s + (1 if i >= teams - rotation else 0) for i, s in enumerate(base)]
         mode = Mode.PELADA_NORMAL if teams == 2 else Mode.CAMPEONATO
-        options.append(Alternative(teams, sizes, mode, _describe(teams, sizes, per)))
+        options.append(Alternative(teams, sizes, mode, _describe(teams, sizes, per, reserves)))
     return options
 
 
@@ -280,9 +318,8 @@ def run_draw(
             f"(há {total_line} de linha e {len(goalkeepers)} goleiro(s) fixo(s))."
         )
 
-    sizes = _line_sizes(total_line, n, per)
-    surplus = total_line - sum(sizes)  # excedentes
-    if n == 2 and min(len(goalkeepers), 2) + surplus < 2:
+    sizes, rotation, bench = _plan(total_line, len(goalkeepers), n, per)
+    if n == 2 and min(len(goalkeepers), 2) + rotation < 2:
         raise DrawError(
             "Para 2 times cada um precisa de um goleiro (fixo ou jogador a mais para revezar): "
             f"são necessários no mínimo {2 * per + 2} jogadores. Há {total_line} de linha e "
@@ -295,6 +332,18 @@ def run_draw(
     warnings: list[str] = []
     infos: list[str] = []
 
+    # 6. Quem não cabe em 5 + 1 fica de reserva: sorteio uniforme entre todos de linha,
+    # antes da distribuição, para não punir sempre os mais fracos de cada posição
+    reserves: list[DrawPlayer] = []
+    if bench:
+        reserves = sorted(rng.sample(line, bench), key=lambda p: p.name)
+        reserve_ids = {p.id for p in reserves}
+        line = [p for p in line if p.id not in reserve_ids]
+        warnings.append(
+            f"Cada time tem no máximo {per} na linha + 1 no gol: {bench} jogador(es) ficaram de reserva "
+            f"(sorteados): {', '.join(p.name for p in reserves)}. Coloque-os manualmente se quiser trocar alguém."
+        )
+
     # 3. Grupos por posição
     groups = {pos: _order_candidates([p for p in line if p.primary == pos], rng, config.balance_by_skill)
               for pos in LINE_POSITIONS}
@@ -306,7 +355,7 @@ def run_draw(
         )
 
     def place(team: Team, p: DrawPlayer, position: str, filled_by: FilledBy, role: Role = Role.LINHA) -> None:
-        team.players.append(TeamSlot(p.id, p.name, position, role, filled_by, p.lvl))
+        team.players.append(TeamSlot(p.id, p.name, position, role, filled_by, p.lvl, p.spd))
 
     # Posições em falta: quem as tem como secundária vai para o fim da fila da própria
     # posição, para sobrar e cobrir a falta (regra 5)
@@ -316,14 +365,18 @@ def run_draw(
         for pos in LINE_POSITIONS:
             groups[pos].sort(key=lambda p: p.secondary in scarce)  # sort estável
 
-    # 4. Distribuição circular por posição
+    # 4. Distribuição circular por posição. Equilibrando, a cada rodada o time mais fraco
+    # (menor soma de força) escolhe primeiro e leva o mais forte que sobrou na posição.
     offset = rng.randrange(n)
     missing: dict[str, list[int]] = {pos: [] for pos in LINE_POSITIONS}
     for pos in LINE_POSITIONS:
         pool = groups[pos]
         rounds = max(q[pos] for q in quotas)
         for r in range(rounds):
-            for t in _team_order(n, r, config.balance_by_skill, offset):
+            order = [(offset + i) % n for i in range(n)]
+            if config.balance_by_skill:
+                order.sort(key=lambda t: teams[t].strength_sum)  # estável: empate segue o offset
+            for t in order:
                 if quotas[t][pos] > r:
                     if pool:
                         place(teams[t], pool.pop(0), pos, FilledBy.PRIMARIA)
@@ -369,16 +422,13 @@ def run_draw(
             "Mova-os manualmente para a linha ou deixe-os de fora."
         )
 
-    # 6. Excedentes: um por time, priorizando quem não tem goleiro fixo
+    # 6. Excedentes: no máximo um por time, só para quem não tem goleiro fixo
     extras = _order_candidates(leftovers + no_position, rng, config.balance_by_skill)
     without_gk = [t for t in team_order if not teams[t].has_fixed_gk]
-    with_gk = [t for t in team_order if teams[t].has_fixed_gk]
     if config.balance_by_skill:
-        without_gk.sort(key=lambda t: teams[t].level_sum)
-        with_gk.sort(key=lambda t: teams[t].level_sum)
-    priority = without_gk + with_gk
-    for i, p in enumerate(extras):
-        t = priority[i % n]
+        without_gk.sort(key=lambda t: teams[t].strength_sum)
+    assert len(extras) <= len(without_gk), "excedentes além de 5 + 1 deveriam ter virado reserva"
+    for t, p in zip(without_gk, extras):
         position = p.primary or "ALA"
         how = FilledBy.PRIMARIA if p.primary else FilledBy.SEM_POSICAO
         place(teams[t], p, position, how, Role.REVEZAMENTO)
@@ -395,7 +445,7 @@ def run_draw(
     if mode == Mode.PELADA_NORMAL:
         infos.append("Apenas 2 times: pelada normal (sem campeonato).")
 
-    alternatives = suggest_alternatives(total_line, config) if num_teams is None else []
+    alternatives = suggest_alternatives(total_line, config, len(goalkeepers)) if num_teams is None else []
     if alternatives:
         warnings.append(
             f"Sobraram {total_line - auto_n * per} jogadores de linha. Veja as formações alternativas antes de travar."
@@ -416,6 +466,7 @@ def run_draw(
         infos=infos,
         alternatives=alternatives,
         unassigned=unassigned,
+        reserves=[p.id for p in reserves],
     )
 
 

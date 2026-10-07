@@ -88,7 +88,7 @@ export function SettingsPage() {
         </Field>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" className="h-4 w-4 accent-primary" checked={form.balance_by_skill} onChange={(e) => set('balance_by_skill', e.target.checked)} />
-          Equilibrar times por nível técnico (serpentina)
+          Equilibrar times por nível técnico e velocidade
         </label>
       </Section>
 

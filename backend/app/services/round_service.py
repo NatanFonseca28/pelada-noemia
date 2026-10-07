@@ -304,6 +304,7 @@ class RoundService:
                 primary=p.primary_position.value if p.primary_position else None,
                 secondary=p.secondary_position.value if p.secondary_position else None,
                 level=p.skill_level,
+                speed=p.speed,
             )
             for p in rows
         ]

@@ -43,6 +43,8 @@ export interface Player {
   primary_position: Position | null
   secondary_position: Position | null
   skill_level: number | null
+  /** velocidade 1–5 (só ADMIN vê) */
+  speed: number | null
   active: boolean
   photo_url: string | null
   /** contato em E.164 (+5521987654321) — só vem preenchido para ADMIN */

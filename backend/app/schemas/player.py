@@ -30,6 +30,7 @@ class PlayerBase(BaseModel):
     primary_position: Position
     secondary_position: Position | None = None
     skill_level: int | None = Field(default=None, ge=1, le=5)
+    speed: int | None = Field(default=None, ge=1, le=5)
     active: bool = True
     # Contato — só ADMIN vê e edita (ver routers/players.py:_visible)
     phone: Phone = None
@@ -50,6 +51,7 @@ class PlayerUpdate(BaseModel):
     primary_position: Position | None = None
     secondary_position: Position | None = None
     skill_level: int | None = Field(default=None, ge=1, le=5)
+    speed: int | None = Field(default=None, ge=1, le=5)
     active: bool | None = None
     phone: Phone = None
     whatsapp_opt_in: bool | None = None

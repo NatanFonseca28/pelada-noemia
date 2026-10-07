@@ -263,7 +263,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
         <div className="mb-3 space-y-2">
           {round.not_in_teams.length > 0 && (
             <Alert kind="info">
-              Confirmados depois do sorteio (arraste para um time ou toque para escolher):{' '}
+              Confirmados fora dos times — reservas ou confirmados depois do sorteio (arraste para um time ou toque para escolher):{' '}
               {round.not_in_teams.map((p) => (
                 <button
                   key={p.player_id}

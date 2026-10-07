@@ -9,6 +9,7 @@ class Player(TimestampMixin, Base):
     __tablename__ = "players"
     __table_args__ = (
         CheckConstraint("skill_level BETWEEN 1 AND 5", name="skill_level_range"),
+        CheckConstraint("speed BETWEEN 1 AND 5", name="speed_range"),
         CheckConstraint(
             "secondary_position IS NULL OR secondary_position <> primary_position",
             name="secondary_differs",
@@ -26,6 +27,7 @@ class Player(TimestampMixin, Base):
         pg_enum(Position, "player_position"), nullable=True
     )
     skill_level: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    speed: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     # Contato (visível só para ADMIN). E.164, ex.: +5521987654321
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)

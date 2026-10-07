@@ -7,6 +7,7 @@ import { Alert, Avatar, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Mod
 import { playerTypeLabel, positionLabel, positionShort } from '@/lib/labels'
 import { formatPhone, maskPhone } from '@/lib/phone'
 
+const SPEED_LABELS = ['Muito lento', 'Lento', 'Médio', 'Rápido', 'Muito rápido']
 const POSITIONS: Position[] = ['ZAGUEIRO', 'ALA', 'ATACANTE', 'GOLEIRO_FIXO']
 const EMPTY: PlayerInput = {
   name: '',
@@ -15,6 +16,7 @@ const EMPTY: PlayerInput = {
   primary_position: 'ZAGUEIRO',
   secondary_position: null,
   skill_level: null,
+  speed: null,
   active: true,
   phone: null,
   whatsapp_opt_in: false,
@@ -62,27 +64,15 @@ function PlayerForm({ player, onDone }: { player: Player | null; onDone: () => v
       <Field label="Apelido">
         <input className="input" value={form.nickname ?? ''} onChange={(e) => setForm({ ...form, nickname: e.target.value })} />
       </Field>
+      <Field label="Tipo">
+        {/* Goleiro fixo é sempre isento (regra também garantida pela API) */}
+        <select className="input" value={isGk ? 'ISENTO' : form.type} disabled={isGk} onChange={(e) => setForm({ ...form, type: e.target.value as PlayerType })}>
+          {((isGk ? ['ISENTO'] : ['MENSALISTA', 'DIARISTA']) as PlayerType[]).map((t) => (
+            <option key={t} value={t}>{t === 'ISENTO' ? 'Isento (goleiro)' : playerTypeLabel[t]}</option>
+          ))}
+        </select>
+      </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Tipo">
-          {/* Goleiro fixo é sempre isento (regra também garantida pela API) */}
-          <select className="input" value={isGk ? 'ISENTO' : form.type} disabled={isGk} onChange={(e) => setForm({ ...form, type: e.target.value as PlayerType })}>
-            {((isGk ? ['ISENTO'] : ['MENSALISTA', 'DIARISTA']) as PlayerType[]).map((t) => (
-              <option key={t} value={t}>{t === 'ISENTO' ? 'Isento (goleiro)' : playerTypeLabel[t]}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Nível técnico">
-          <select
-            className="input"
-            value={form.skill_level ?? ''}
-            onChange={(e) => setForm({ ...form, skill_level: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">Não informado</option>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>{'★'.repeat(n)}</option>
-            ))}
-          </select>
-        </Field>
         <Field label="Posição principal">
           <select
             className="input"
@@ -115,6 +105,30 @@ function PlayerForm({ player, onDone }: { player: Player | null; onDone: () => v
             <option value="">Nenhuma</option>
             {POSITIONS.filter((p) => p !== 'GOLEIRO_FIXO' && p !== form.primary_position).map((p) => (
               <option key={p} value={p}>{positionLabel[p]}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Nível técnico">
+          <select
+            className="input"
+            value={form.skill_level ?? ''}
+            onChange={(e) => setForm({ ...form, skill_level: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">Não informado</option>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{'★'.repeat(n)}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Velocidade">
+          <select
+            className="input"
+            value={form.speed ?? ''}
+            onChange={(e) => setForm({ ...form, speed: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">Não informado</option>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{n} — {SPEED_LABELS[n - 1]}</option>
             ))}
           </select>
         </Field>
@@ -234,6 +248,7 @@ export function PlayersAdminPage() {
                   {p.secondary_position && <Badge>2ª: {positionLabel[p.secondary_position]}</Badge>}
                   <TypeBadge type={p.type} />
                   {p.skill_level && <Badge>{'★'.repeat(p.skill_level)}</Badge>}
+                  {p.speed && <Badge>Vel. {p.speed}</Badge>}
                   {!p.active && <Badge color="red">Inativo</Badge>}
                 </div>
                 {p.phone && (
