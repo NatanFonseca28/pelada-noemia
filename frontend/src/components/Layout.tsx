@@ -32,6 +32,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { usePageAccess } from '@/lib/pages'
 import { AccountChip } from './AccountChip'
 import { NotificationBell } from './NotificationBell'
+import { useSheetQueueFlusher } from '@/hooks/useSheetQueue'
 import { roleLabel } from '@/lib/labels'
 import { useTheme, type Theme } from '@/theme/ThemeProvider'
 import { ICON_STROKE, Modal, SkeletonList, cx } from './ui'
@@ -146,6 +147,7 @@ export function Layout() {
   const ThemeIcon = themeIcons[theme]
   const admin = hasRole('ADMIN')
   const { isHidden, superadmin } = usePageAccess()
+  useSheetQueueFlusher() // lances da súmula guardados sem internet
   const pelada = PELADA.filter((i) => !isHidden(i.to))
   const gestao = GESTAO.filter((i) => !isHidden(i.to))
   const bottom = BOTTOM.filter((i) => !isHidden(i.to))

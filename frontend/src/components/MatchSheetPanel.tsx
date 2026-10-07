@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Flag, Goal, Sun, Trash2 } from 'lucide-react'
+import { Flag, Goal, Sun, Trash2, WifiOff } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useMatchSheet, useSheetActions } from '@/api/stats'
 import { reopenMatch, useMatchResult } from '@/api/tournaments'
@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useConfirm, useToast } from '@/contexts/feedback'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
 import { useWakeLock } from '@/hooks/useWakeLock'
+import { useOnline } from '@/hooks/useSheetQueue'
 import { KickoffNote } from './KickoffNote'
 import type { EventType, MatchItem } from '@/api/types'
 import { eventLabel } from '@/lib/labels'
@@ -33,7 +34,8 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
   /** chamado depois de "Finalizar súmula" enviar o resultado */
   onFinished?: () => void
 }) {
-  const { data: sheet, isLoading } = useMatchSheet(match.id)
+  const { data: sheet, isLoading, pendingCount } = useMatchSheet(match.id)
+  const online = useOnline()
   const { add, remove } = useSheetActions(match.id)
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const toast = useToast()
@@ -81,7 +83,8 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
   const tied = sheet.home_score === sheet.away_score
   const needsPens = knockout && tied && tieRule === 'PENALTIS'
   const pensValid = !needsPens || (pens.home !== '' && pens.away !== '' && pens.home !== pens.away)
-  const canFinish = !!match.home && !!match.away && pensValid
+  // o resultado só vai depois que todos os lances guardados no celular chegarem ao servidor
+  const canFinish = !!match.home && !!match.away && pensValid && pendingCount === 0
 
   const finalize = async () => {
     const home = match.home!
@@ -176,6 +179,17 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
         </div>
       )}
 
+      {(pendingCount > 0 || !online) && (
+        <div role="status" className="flex items-center gap-2 rounded-btn bg-accent/10 px-3 py-2 text-sm ring-1 ring-inset ring-accent/40">
+          <WifiOff size={16} strokeWidth={ICON_STROKE} className="shrink-0 text-accent-ink" aria-hidden />
+          <span>
+            {!online ? 'Sem internet. ' : ''}
+            {pendingCount > 0
+              ? `${pendingCount} lance${pendingCount > 1 ? 's' : ''} guardado${pendingCount > 1 ? 's' : ''} neste celular; ${online ? 'enviando…' : 'vão ser enviados quando a conexão voltar.'}`
+              : 'Pode continuar lançando: os lances ficam guardados neste celular.'}
+          </span>
+        </div>
+      )}
       {error && <Alert>{error instanceof ApiError ? error.message : 'Erro'}</Alert>}
 
       {canEdit && step.kind === 'idle' && (
@@ -264,6 +278,7 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
                     {e.type === 'GOL_CONTRA' && <span className="text-muted"> (contra)</span>}
                     {e.assist_name && <span className="text-muted"> · assist. {e.assist_name}</span>}
                   </span>
+                  {e.id < 0 && <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[11px] font-semibold text-accent-ink">pendente</span>}
                   {e.minute != null && <span className="text-xs text-muted">{e.minute}'</span>}
                   {canEdit && (
                     <button className="press grid h-11 w-11 place-items-center rounded-btn text-muted hover:bg-soft hover:text-danger-ink" aria-label="Excluir lance" onClick={() => remove.mutate(e.id)}>
