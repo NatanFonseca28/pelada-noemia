@@ -140,6 +140,17 @@ export interface Delinquent {
   whatsapp_opt_in: boolean
   months_due: string[]
   amount_due: string
+  /** última cobrança registrada (por qualquer administrador) */
+  last_charged_at: string | null
+  last_charged_by: string | null
+}
+
+export interface ChargeMessage {
+  message: string
+  pix_key: string | null
+  is_default: boolean
+  default_message: string
+  variables: { name: string; description: string }[]
 }
 
 export interface CashEntry {

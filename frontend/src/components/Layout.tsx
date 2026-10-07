@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogIn,
+  MessageSquareText,
   LogOut,
   Monitor,
   Moon,
@@ -64,6 +65,7 @@ const GESTAO: NavItem[] = [
 // Só o superadmin
 const SUPER: NavItem[] = [
   { to: '/gestao/visibilidade', label: 'Visibilidade das páginas', icon: EyeOff },
+  { to: '/gestao/mensagem-cobranca', label: 'Mensagem de cobrança', icon: MessageSquareText },
   { to: '/gestao/acessos', label: 'Log de acessos', icon: LogIn },
   { to: '/gestao/auditoria', label: 'Auditoria', icon: ShieldCheck },
   { to: '/gestao/design', label: 'Design system', icon: Palette },

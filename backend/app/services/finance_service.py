@@ -7,7 +7,9 @@ from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
+from app.domain.charge_message import CHARGE_VARIABLES, DEFAULT_CHARGE_MESSAGE
 from app.domain.delinquency import amount_due, is_delinquent, reference_months
+from app.models.audit import AuditLog
 from app.models.enums import PlayerType
 from app.models.finance import CashEntry, CashKind, CollectionItem, FinanceCollection, MonthlyFee
 from app.models.player import Player
@@ -15,6 +17,10 @@ from app.models.user import User
 from app.repositories.settings_repo import SettingsRepository
 from app.schemas.finance import (
     CashEntryIn,
+    ChargeMessageIn,
+    ChargeMessageOut,
+    ChargeOut,
+    ChargeVariable,
     DelinquentOut,
     CollectionIn,
     CollectionItemIn,
@@ -162,12 +168,65 @@ class FinanceService:
         overdue = await self.delinquency()
         months = list(reference_months(today_local()))
         players = list(await self.session.scalars(select(Player).where(Player.id.in_(overdue)))) if overdue else []
+        charged = await self._last_charges([p.id for p in players])
         out = [
             DelinquentOut(player_id=p.id, name=p.display_name, phone=p.phone, whatsapp_opt_in=p.whatsapp_opt_in,
-                          months_due=months, amount_due=amount_due(overdue[p.id], fee))
+                          months_due=months, amount_due=amount_due(overdue[p.id], fee),
+                          last_charged_at=charged.get(p.id, (None, None))[0],
+                          last_charged_by=charged.get(p.id, (None, None))[1])
             for p in players
         ]
         return sorted(out, key=lambda d: d.name.casefold())
+
+    async def _last_charges(self, player_ids: list[int]) -> dict[int, tuple[datetime, str | None]]:
+        """Última cobrança registrada de cada jogador (auditoria, entity="charge") e quem cobrou."""
+        if not player_ids:
+            return {}
+        rows = (await self.session.execute(
+            select(AuditLog.entity_id, AuditLog.created_at, User.name)
+            .outerjoin(User, User.id == AuditLog.user_id)
+            .where(AuditLog.entity == "charge", AuditLog.entity_id.in_([str(i) for i in player_ids]))
+            .order_by(AuditLog.created_at.desc())
+        )).all()
+        last: dict[int, tuple[datetime, str | None]] = {}
+        for entity_id, at, name in rows:
+            last.setdefault(int(entity_id), (at, name.split()[0] if name else None))
+        return last
+
+    async def charge(self, player_id: int, actor: User) -> ChargeOut:
+        """Registra que `actor` abriu a cobrança no WhatsApp (o envio sai do aparelho dele)."""
+        overdue = await self.delinquency()
+        if player_id not in overdue:
+            raise ValidationError("Este jogador não está inadimplente")
+        fee = (await self.get_config()).monthly_fee
+        months = [m.isoformat() for m in reference_months(today_local())]
+        await audit_service.record(
+            self.session, user_id=actor.id, action="CHARGE", entity="charge", entity_id=player_id,
+            after={"months": months, "amount": str(amount_due(overdue[player_id], fee))},
+        )
+        await self.session.commit()
+        return ChargeOut(player_id=player_id, charged_at=datetime.now(TZ), charged_by=actor.name.split()[0])
+
+    async def charge_message(self) -> ChargeMessageOut:
+        current = await SettingsRepository(self.session).get_current()
+        return ChargeMessageOut(
+            message=current.charge_message or DEFAULT_CHARGE_MESSAGE,
+            pix_key=current.pix_key,
+            is_default=not current.charge_message,
+            default_message=DEFAULT_CHARGE_MESSAGE,
+            variables=[ChargeVariable(name=k, description=v) for k, v in CHARGE_VARIABLES.items()],
+        )
+
+    async def set_charge_message(self, data: ChargeMessageIn, actor: User) -> ChargeMessageOut:
+        current = await SettingsRepository(self.session).get_current()
+        before = {"charge_message": current.charge_message, "pix_key": current.pix_key}
+        current.charge_message = None if data.message == DEFAULT_CHARGE_MESSAGE else data.message
+        current.pix_key = (data.pix_key or "").strip() or None
+        await audit_service.record(self.session, user_id=actor.id, action="UPDATE", entity="charge_message",
+                                   entity_id="1", before=before,
+                                   after={"charge_message": current.charge_message, "pix_key": current.pix_key})
+        await self.session.commit()
+        return await self.charge_message()
 
     async def balance(self, config: FinanceConfig | None = None) -> Decimal:
         """Saldo = saldo inicial + (mensalidades + entradas − saídas) a partir do mês de abertura."""

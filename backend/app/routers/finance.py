@@ -2,9 +2,13 @@ from datetime import date
 
 from fastapi import APIRouter, File, Query, UploadFile, status
 
-from app.core.deps import AdminUser, SessionDep
+from app.core.deps import AdminUser, SessionDep, SuperAdminUser
 from app.core.errors import ValidationError
 from app.schemas.finance import (
+    ChargeIn,
+    ChargeMessageIn,
+    ChargeMessageOut,
+    ChargeOut,
     CashEntryIn,
     CashEntryOut,
     CollectionIn,
@@ -34,6 +38,23 @@ def _year(year: int | None) -> int:
 async def overview(admin: AdminUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
     """Grade de mensalidades do ano, resumo mensal e saldo do caixa."""
     return await FinanceService(session).overview(_year(year))
+
+
+@router.get("/charge-message", response_model=ChargeMessageOut)
+async def get_charge_message(admin: AdminUser, session: SessionDep):
+    """Texto da cobrança por WhatsApp (todo administrador usa; só o superadmin edita)."""
+    return await FinanceService(session).charge_message()
+
+
+@router.put("/charge-message", response_model=ChargeMessageOut)
+async def set_charge_message(data: ChargeMessageIn, admin: SuperAdminUser, session: SessionDep):
+    return await FinanceService(session).set_charge_message(data, admin)
+
+
+@router.post("/charges", response_model=ChargeOut, status_code=status.HTTP_201_CREATED)
+async def register_charge(data: ChargeIn, admin: AdminUser, session: SessionDep):
+    """Registra que o administrador abriu a cobrança no WhatsApp (o envio sai do aparelho dele)."""
+    return await FinanceService(session).charge(data.player_id, admin)
 
 
 @router.get("/delinquents", response_model=list[DelinquentOut])

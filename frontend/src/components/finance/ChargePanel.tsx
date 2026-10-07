@@ -1,0 +1,168 @@
+import { useMemo, useState } from 'react'
+import { Check, MessageCircle, SkipForward } from 'lucide-react'
+import { useChargeMessage, useDelinquents, useRegisterCharge } from '@/api/finance'
+import type { Delinquent } from '@/api/types'
+import { useAuth } from '@/auth/AuthProvider'
+import { Badge, Button, ErrorState, ICON_STROKE, Modal, Skeleton, cx } from '@/components/ui'
+import { chargeValues, chargedRecently, renderChargeMessage, since, whatsappChargeLink, type ChargeContext } from '@/lib/charge'
+import { money, monthAbbr } from '@/lib/labels'
+import { formatPhone } from '@/lib/phone'
+
+const dueLabel = (months: string[]) => months.map((m) => monthAbbr[Number(m.slice(5, 7)) - 1]).join(' e ')
+
+/** Botão que abre o WhatsApp DO APARELHO de quem clicou (a mensagem sai do número dele) e registra a cobrança. */
+function ChargeLink({ d, text, onOpened, children, className }: {
+  d: Delinquent
+  text: string
+  onOpened: () => void
+  children: React.ReactNode
+  className?: string
+}) {
+  if (!d.phone) return null
+  return (
+    <a href={whatsappChargeLink(d.phone, text)} target="_blank" rel="noopener noreferrer" onClick={onOpened} className={className}>
+      {children}
+    </a>
+  )
+}
+
+function ChargedInfo({ d }: { d: Delinquent }) {
+  if (!d.last_charged_at) return null
+  return (
+    <span className={cx('flex items-center gap-1 text-xs', chargedRecently(d.last_charged_at) ? 'text-primary-ink' : 'text-muted')}>
+      <Check size={12} strokeWidth={2.5} aria-hidden />
+      Cobrado{d.last_charged_by ? ` por ${d.last_charged_by}` : ''} {since(d.last_charged_at)}
+    </span>
+  )
+}
+
+/** "Cobrar todos": uma conversa por vez (o navegador bloqueia abrir várias abas de uma vez). */
+function ChargeAll({ list, ctx, template, onClose }: { list: Delinquent[]; ctx: ChargeContext; template: string; onClose: () => void }) {
+  const [includeRecent, setIncludeRecent] = useState(false)
+  const queue = useMemo(
+    () => list.filter((d) => d.phone && (includeRecent || !chargedRecently(d.last_charged_at))),
+    [list, includeRecent],
+  )
+  const [index, setIndex] = useState(0)
+  const [opened, setOpened] = useState(0)
+  const register = useRegisterCharge()
+  const current = queue[index]
+  const done = index >= queue.length
+
+  const text = current ? renderChargeMessage(template, chargeValues(current, ctx)) : ''
+  const skipped = list.length - list.filter((d) => d.phone).length
+
+  return (
+    <Modal open onClose={onClose} title="Cobrar todos" footer={<div className="flex justify-end"><Button variant="secondary" onClick={onClose}>{done ? 'Fechar' : 'Encerrar'}</Button></div>}>
+      {index === 0 && opened === 0 && (
+        <label className="mb-3 flex min-h-[44px] items-center gap-2 text-sm">
+          <input type="checkbox" className="h-4 w-4 accent-primary" checked={includeRecent} onChange={(e) => setIncludeRecent(e.target.checked)} />
+          Incluir quem já foi cobrado nos últimos 3 dias
+        </label>
+      )}
+      {done ? (
+        <div className="py-6 text-center">
+          <p className="font-display text-2xl font-bold">{opened ? `${opened} cobrança${opened > 1 ? 's' : ''} aberta${opened > 1 ? 's' : ''}` : 'Ninguém para cobrar agora'}</p>
+          {skipped > 0 && <p className="mt-1 text-sm text-muted">{skipped} sem WhatsApp no cadastro</p>}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-muted">
+            {index + 1} de {queue.length}
+          </p>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="font-display text-2xl font-bold">{current.name}</p>
+            <p className="tabular font-semibold">{money(current.amount_due)}</p>
+          </div>
+          <ChargedInfo d={current} />
+          <p className="whitespace-pre-wrap rounded-btn bg-soft p-3 text-sm">{text}</p>
+          <div className="flex flex-wrap gap-2">
+            <ChargeLink
+              d={current}
+              text={text}
+              onOpened={() => {
+                register.mutate(current.player_id)
+                setOpened((n) => n + 1)
+                setIndex((i) => i + 1)
+              }}
+              className="press inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-btn bg-primary px-4 font-medium text-primary-on"
+            >
+              <MessageCircle size={18} strokeWidth={ICON_STROKE} aria-hidden /> Abrir WhatsApp de {current.name}
+            </ChargeLink>
+            <Button variant="secondary" size="lg" onClick={() => setIndex((i) => i + 1)}>
+              <SkipForward size={16} strokeWidth={ICON_STROKE} aria-hidden /> Pular
+            </Button>
+          </div>
+          <p className="text-xs text-muted">Envie a mensagem no WhatsApp e volte para esta tela para o próximo.</p>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: string }) {
+  const [open, setOpen] = useState(false)
+  const [all, setAll] = useState(false)
+  const { data, isLoading, error, refetch } = useDelinquents(open && count > 0)
+  const { data: msg } = useChargeMessage()
+  const { user } = useAuth()
+  const register = useRegisterCharge()
+  if (count === 0) return null
+
+  const ctx: ChargeContext = { pixKey: msg?.pix_key ?? null, monthlyFee, gestor: user?.name.split(' ')[0] ?? '' }
+  const template = msg?.message ?? ''
+  const withPhone = data?.filter((d) => d.phone).length ?? 0
+
+  return (
+    <details className="card mb-3" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="press flex min-h-[48px] cursor-pointer list-none items-center gap-2 px-4 font-medium">
+        <MessageCircle size={18} strokeWidth={ICON_STROKE} className="text-danger-ink" aria-hidden />
+        Para cobrar ({count})
+      </summary>
+      <div className="border-t border-line p-2">
+        {isLoading || !msg ? (
+          <Skeleton className="my-3 h-24 w-full" />
+        ) : error ? (
+          <ErrorState error={error} onRetry={() => refetch()} />
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1">
+              <p className="text-xs text-muted">Envia do WhatsApp deste aparelho, com a sua assinatura.</p>
+              <Button size="sm" onClick={() => setAll(true)} disabled={!withPhone}>
+                <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar todos ({withPhone})
+              </Button>
+            </div>
+            <ul>
+              {data?.map((d) => {
+                const text = renderChargeMessage(template, chargeValues(d, ctx))
+                return (
+                  <li key={d.player_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-2 py-2 text-sm first:border-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{d.name}</p>
+                      <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                        <span>{dueLabel(d.months_due)}</span>
+                        <span className="tabular font-semibold text-ink">{money(d.amount_due)}</span>
+                        {d.phone ? <span className="tabular">{formatPhone(d.phone)}</span> : <Badge color="yellow">sem WhatsApp</Badge>}
+                        {d.phone && !d.whatsapp_opt_in && <Badge color="yellow">sem consentimento</Badge>}
+                      </p>
+                      <ChargedInfo d={d} />
+                    </div>
+                    <ChargeLink
+                      d={d}
+                      text={text}
+                      onOpened={() => register.mutate(d.player_id)}
+                      className="press inline-flex min-h-[44px] items-center gap-1.5 rounded-btn border border-primary/40 px-3 font-medium text-primary-ink hover:bg-primary/10"
+                    >
+                      <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar
+                    </ChargeLink>
+                  </li>
+                )
+              })}
+            </ul>
+          </>
+        )}
+      </div>
+      {all && data && <ChargeAll list={data} ctx={ctx} template={template} onClose={() => setAll(false)} />}
+    </details>
+  )
+}

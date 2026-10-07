@@ -1,8 +1,10 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
+from app.domain.charge_message import validate_charge_message
 from app.models.finance import CashCategory, CashKind
 from app.schemas.common import ORMModel
 
@@ -78,7 +80,7 @@ class FinanceOverview(BaseModel):
 
 
 class DelinquentOut(BaseModel):
-    """Base da futura cobrança por WhatsApp: quem cobrar, para onde e quanto."""
+    """Quem cobrar, para onde, quanto e quando foi cobrado pela última vez (por qual administrador)."""
 
     player_id: int
     name: str
@@ -86,6 +88,36 @@ class DelinquentOut(BaseModel):
     whatsapp_opt_in: bool
     months_due: list[date]
     amount_due: Decimal
+    last_charged_at: datetime | None = None
+    last_charged_by: str | None = None
+
+
+class ChargeVariable(BaseModel):
+    name: str
+    description: str
+
+
+class ChargeMessageOut(BaseModel):
+    message: str
+    pix_key: str | None
+    is_default: bool
+    default_message: str
+    variables: list[ChargeVariable]
+
+
+class ChargeMessageIn(BaseModel):
+    message: Annotated[str, AfterValidator(validate_charge_message)]
+    pix_key: str | None = Field(default=None, max_length=140)
+
+
+class ChargeIn(BaseModel):
+    player_id: int
+
+
+class ChargeOut(BaseModel):
+    player_id: int
+    charged_at: datetime
+    charged_by: str
 
 
 class CashEntryIn(BaseModel):

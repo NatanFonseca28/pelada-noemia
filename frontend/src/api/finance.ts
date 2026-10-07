@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, json } from './client'
-import type { CashEntry, Collection, Delinquent, FeeCell, FinanceConfig, FinanceOverview, ImportResult } from './types'
+import type { CashEntry, ChargeMessage, Collection, Delinquent, FeeCell, FinanceConfig, FinanceOverview, ImportResult } from './types'
 
 const invalidateFinance = (qc: ReturnType<typeof useQueryClient>) => qc.invalidateQueries({ queryKey: ['finance'] })
 
@@ -14,6 +14,33 @@ export function useFinanceOverview(year: number) {
 /** Inadimplentes (mês atual e anterior) com contato — base da futura cobrança por WhatsApp. */
 export function useDelinquents(enabled = true) {
   return useQuery({ queryKey: ['finance', 'delinquents'], queryFn: () => api<Delinquent[]>('/finance/delinquents'), enabled })
+}
+
+export function useChargeMessage() {
+  return useQuery({ queryKey: ['finance', 'charge-message'], queryFn: () => api<ChargeMessage>('/finance/charge-message') })
+}
+
+/** Só o superadmin consegue salvar (a API recusa os demais). */
+export function useSaveChargeMessage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { message: string; pix_key: string | null }) =>
+      api<ChargeMessage>('/finance/charge-message', { method: 'PUT', body: json(data) }),
+    onSuccess: (data) => qc.setQueryData(['finance', 'charge-message'], data),
+  })
+}
+
+/** Registra que o administrador abriu a cobrança no WhatsApp (o envio sai do aparelho dele). */
+export function useRegisterCharge() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (playerId: number) =>
+      api<{ player_id: number; charged_at: string; charged_by: string }>('/finance/charges', {
+        method: 'POST',
+        body: json({ player_id: playerId }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['finance', 'delinquents'] }),
+  })
 }
 
 export function useSetFee() {

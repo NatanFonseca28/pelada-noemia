@@ -26,6 +26,7 @@ const UsersPage = named(() => import('@/pages/gestao/UsersPage'), 'UsersPage')
 const FinancePage = named(() => import('@/pages/gestao/FinancePage'), 'FinancePage')
 const SettingsPage = named(() => import('@/pages/gestao/SettingsPage'), 'SettingsPage')
 const AuditPage = named(() => import('@/pages/gestao/AuditPage'), 'AuditPage')
+const ChargeMessagePage = named(() => import('@/pages/gestao/ChargeMessagePage'), 'ChargeMessagePage')
 const AccessLogPage = named(() => import('@/pages/gestao/AccessLogPage'), 'AccessLogPage')
 const PageVisibilityPage = named(() => import('@/pages/gestao/PageVisibilityPage'), 'PageVisibilityPage')
 const ExportPage = named(() => import('@/pages/gestao/ExportPage'), 'ExportPage')
@@ -61,6 +62,7 @@ export function App() {
               <Route path="auditoria" element={<AuditPage />} />
               <Route path="acessos" element={<AccessLogPage />} />
               <Route path="visibilidade" element={<PageVisibilityPage />} />
+              <Route path="mensagem-cobranca" element={<ChargeMessagePage />} />
               <Route path="design" element={<DesignSystemPage />} />
             </Route>
           </Route>

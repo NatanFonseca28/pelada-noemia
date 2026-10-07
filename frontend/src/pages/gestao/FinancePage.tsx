@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import {
   useCashEntries,
-  useDelinquents,
   useCollectionMutations,
   useCollections,
   useDeleteEntry,
@@ -18,7 +17,6 @@ import type { CashCategory, CashEntry, CashKind, Collection, FeeRow, FinanceConf
 import {
   AlertTriangle,
   ArrowDownRight,
-  MessageCircle,
   ArrowUpRight,
   Check,
   ChevronLeft,
@@ -32,12 +30,12 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
+import { ChargePanel } from '@/components/finance/ChargePanel'
 import { FinanceChart } from '@/components/finance/FinanceChart'
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, Field, ICON_STROKE, Modal, PageHeader, Skeleton, Spinner, cx } from '@/components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Skeleton, Spinner, cx } from '@/components/ui'
 import { useCountUp } from '@/hooks/useCountUp'
 import { computeFlow, tileNumbers, toQuarters } from '@/lib/finance'
 import { cashCategoryLabel, monthAbbr, monthLong, monthShort, money } from '@/lib/labels'
-import { formatPhone, whatsappLink } from '@/lib/phone'
 
 type Tab = 'mensalidades' | 'caixa' | 'cobrancas' | 'config'
 const TABS: { id: Tab; label: string }[] = [
@@ -177,62 +175,6 @@ function FeeCell({ row, month, fee, nowKey, pop, onClick }: { row: FeeRow; month
 }
 
 const dueLabel = (months: string[]) => months.map((m) => monthAbbr[Number(m.slice(5, 7)) - 1]).join(' e ')
-
-/** Quem cobrar: inadimplentes com contato e valor — prévia da futura cobrança por WhatsApp. */
-function ToCharge({ count }: { count: number }) {
-  const [open, setOpen] = useState(false)
-  const { data, isLoading, error, refetch } = useDelinquents(open && count > 0)
-  if (count === 0) return null
-  return (
-    <details className="card mb-3" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="press flex min-h-[48px] cursor-pointer list-none items-center gap-2 px-4 font-medium">
-        <MessageCircle size={18} strokeWidth={ICON_STROKE} className="text-danger-ink" aria-hidden />
-        Para cobrar ({count})
-      </summary>
-      <div className="border-t border-line px-2 pb-2">
-        {isLoading ? (
-          <Skeleton className="my-3 h-24 w-full" />
-        ) : error ? (
-          <ErrorState error={error} onRetry={() => refetch()} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead className="text-xs text-muted">
-                <tr>
-                  <th className="px-2 py-2 text-left font-medium">Jogador</th>
-                  <th className="px-2 py-2 text-left font-medium">WhatsApp</th>
-                  <th className="px-2 py-2 text-left font-medium">Meses</th>
-                  <th className="px-2 py-2 text-right font-medium">Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.map((d) => (
-                  <tr key={d.player_id} className="border-t border-line">
-                    <td className="px-2 py-2 font-medium">{d.name}</td>
-                    <td className="px-2 py-2">
-                      {d.phone ? (
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <a href={whatsappLink(d.phone)} target="_blank" rel="noopener noreferrer" className="tabular text-primary-ink underline-offset-2 hover:underline">
-                            {formatPhone(d.phone)}
-                          </a>
-                          {!d.whatsapp_opt_in && <Badge color="yellow">sem consentimento</Badge>}
-                        </span>
-                      ) : (
-                        <Badge color="yellow">sem WhatsApp</Badge>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-muted">{dueLabel(d.months_due)}</td>
-                    <td className="tabular px-2 py-2 text-right font-semibold">{money(d.amount_due)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </details>
-  )
-}
 
 function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOverview; delinquentOnly: boolean; onDelinquentOnly: (v: boolean) => void }) {
   const [editing, setEditing] = useState<EditingCell | null>(null)
@@ -953,7 +895,7 @@ export function FinancePage() {
       ) : tab === 'mensalidades' ? (
         data.rows.length ? (
           <>
-            <ToCharge count={data.delinquent_count} />
+            <ChargePanel count={data.delinquent_count} monthlyFee={data.config.monthly_fee} />
             <FeesGrid data={data} delinquentOnly={delinquentOnly} onDelinquentOnly={setDelinquentOnly} />
           </>
         ) : <EmptyState>Nenhuma mensalidade. Importe a planilha na aba “Importar / Config.”.</EmptyState>
