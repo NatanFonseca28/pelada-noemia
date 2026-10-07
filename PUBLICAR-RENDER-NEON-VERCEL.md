@@ -185,12 +185,22 @@ Basta `git push` na branch `main`:
 
 ## Backups
 
-O plano gratuito do Neon guarda pouco histórico para restauração. Faça uma cópia sua **uma vez por mês**:
+**Automático:** o workflow `.github/workflows/backup-banco.yml` roda todo dia às 03:00 (horário de Brasília).
+- Faz uma cópia do banco com o usuário `pelada_app`, que só lê dados.
+- **Criptografa** a cópia com a `BACKUP_PASSPHRASE` antes de sair do servidor do GitHub.
+- Guarda cada cópia por 30 dias em Actions → "Backup do banco" → Artifacts.
+- Sem a senha, o arquivo não serve para nada. **Guarde a `BACKUP_PASSPHRASE` no seu gerenciador de senhas**: sem ela não
+  dá para restaurar.
+
+**Restaurar** num banco vazio, por exemplo um branch novo no Neon ou um Postgres local:
 ```bash
-mkdir -p backups
-docker run --rm postgres:16-alpine pg_dump 'COLE-A-NEON_OWNER_URL' -Fc > backups/pelada-$(date +%F).dump
+BACKUP_PASSPHRASE='...' DESTINO_URL='postgresql://...' sh deploy/restaurar-backup.sh   # usa o backup mais recente
 ```
-A pasta `backups/` está no `.gitignore`. Guarde os arquivos fora do computador também (Google Drive, por exemplo).
+- Para restaurar um dia específico, passe o id da execução como argumento.
+- O script mostra no final quantos jogadores e mensalidades foram restaurados, para conferir.
+
+Para guardar uma cópia fora do GitHub, baixe um artifact de vez em quando e guarde no Google Drive. Ele já vem
+criptografado.
 
 ## Bom saber
 

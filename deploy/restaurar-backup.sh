@@ -14,10 +14,11 @@ trap 'rm -rf "$DIR"' EXIT
 
 echo ">> Baixando o backup da execução $RUN"
 gh run download "$RUN" -R "$REPO" -D "$DIR"
-GPG="$(find "$DIR" -name '*.dump.gpg' | head -1)"
-echo ">> Descriptografando $(basename "$GPG")"
+GPG="$(cd "$DIR" && find . -type f -name '*.dump.gpg' | head -1)"
+[ -n "$GPG" ] || { echo "Backup não encontrado no artifact"; exit 1; }
+echo ">> Descriptografando $GPG"
 printf '%s' "$BACKUP_PASSPHRASE" | docker run --rm -i -v "$DIR:/b" alpine:3 sh -c \
-  "apk add -q gnupg >/dev/null && gpg --batch --pinentry-mode loopback --passphrase-fd 0 -d -o /b/backup.dump /b/$(basename "$GPG")"
+  "apk add -q gnupg >/dev/null && gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 -d -o /b/backup.dump '/b/$GPG'"
 echo ">> Restaurando em DESTINO_URL"
 docker run --rm -v "$DIR:/b" postgres:16-alpine pg_restore --no-owner --no-privileges -d "$DESTINO_URL" /b/backup.dump
 docker run --rm postgres:16-alpine psql "$DESTINO_URL" -At -c "select 'jogadores: ' || count(*) from players; select 'mensalidades: ' || count(*) from monthly_fees"
