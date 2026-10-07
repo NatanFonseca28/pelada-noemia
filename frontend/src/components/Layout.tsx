@@ -29,6 +29,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { usePageAccess } from '@/lib/pages'
+import { AccountChip } from './AccountChip'
 import { NotificationBell } from './NotificationBell'
 import { roleLabel } from '@/lib/labels'
 import { useTheme, type Theme } from '@/theme/ThemeProvider'
@@ -193,15 +194,7 @@ export function Layout() {
           )}
         </nav>
         <div className="flex items-center gap-1 border-t border-line p-3">
-          <NavLink to="/conta" className="press flex min-h-[44px] min-w-0 flex-1 items-center gap-2 rounded-btn px-2 hover:bg-soft">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/15 font-display font-bold text-primary-ink" aria-hidden>
-              {user?.name.charAt(0)}
-            </span>
-            <span className="min-w-0 text-left">
-              <span className="block truncate text-sm font-medium">{user?.name}</span>
-              <span className="block truncate text-xs text-muted">{user && roleLabel[user.role]}</span>
-            </span>
-          </NavLink>
+          <AccountChip />
           <NotificationBell />
           {themeButton}
           <button onClick={logout} aria-label="Sair" title="Sair" className="press grid h-11 w-11 place-items-center rounded-btn text-muted hover:bg-soft hover:text-ink">
