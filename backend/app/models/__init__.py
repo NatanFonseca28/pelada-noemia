@@ -5,6 +5,7 @@ from app.models.audit import AuditLog
 from app.models.match_event import EventType, MatchEvent
 from app.models.media import MediaFile
 from app.models.finance import CashEntry, CollectionItem, FinanceCollection, MonthlyFee
+from app.models.password_reset import PasswordReset
 from app.models.player import Player
 from app.models.round import Attendance, Draw, Round, Team, TeamPlayer
 from app.models.settings import PeladaSettings
@@ -24,6 +25,7 @@ __all__ = [
     "MediaFile",
     "EventType",
     "MonthlyFee",
+    "PasswordReset",
     "PeladaSettings",
     "Player",
     "RefreshToken",

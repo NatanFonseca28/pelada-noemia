@@ -54,6 +54,9 @@ export function LoginPage() {
         <Field label="Senha">
           <input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
+        <p className="-mt-2 text-right text-sm">
+          <Link to="/esqueci-senha" className="text-primary-ink hover:underline">Esqueci minha senha</Link>
+        </p>
         <Button type="submit" className="w-full" loading={loading}>
           Entrar
         </Button>

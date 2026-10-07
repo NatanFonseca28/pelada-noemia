@@ -2,7 +2,9 @@ from fastapi import APIRouter, status
 
 from app.core.deps import AdminUser, SessionDep
 from app.models.enums import UserStatus
+from app.schemas.auth import PasswordRequestOut, ResetLinkOut
 from app.schemas.user import UserApprove, UserCreate, UserOut, UserUpdate
+from app.services.password_reset_service import PasswordResetService
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Usuários"])
@@ -16,6 +18,18 @@ async def list_users(admin: AdminUser, session: SessionDep, status: UserStatus |
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_user(data: UserCreate, admin: AdminUser, session: SessionDep):
     return await UserService(session).create(data, admin)
+
+
+@router.get("/password-requests", response_model=list[PasswordRequestOut])
+async def password_requests(admin: AdminUser, session: SessionDep):
+    """Pedidos de nova senha aguardando o link (sino dos administradores)."""
+    return await PasswordResetService(session).pending()
+
+
+@router.post("/password-requests/{request_id}/link", response_model=ResetLinkOut)
+async def password_request_link(request_id: int, admin: AdminUser, session: SessionDep):
+    """Gera o link de nova senha (1 h, uso único) para o administrador enviar pelo WhatsApp."""
+    return await PasswordResetService(session).create_link(request_id, admin)
 
 
 @router.get("/{user_id}", response_model=UserOut)
@@ -42,3 +56,4 @@ async def reject_user(user_id: int, admin: AdminUser, session: SessionDep):
 async def delete_user(user_id: int, admin: AdminUser, session: SessionDep):
     """Exclui o usuário (não a própria conta nem a do superadmin). O jogador vinculado continua no elenco."""
     await UserService(session).delete(user_id, admin)
+

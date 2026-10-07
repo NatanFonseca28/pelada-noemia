@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, json } from './client'
-import type { AuditLog, Player, PlayerInput, Settings, User, UserRole, UserStatus } from './types'
+import type { AuditLog, PasswordRequest, Player, PlayerInput, Settings, User, UserRole, UserStatus } from './types'
 
 export const keys = {
   players: (filters?: object) => ['players', filters ?? {}] as const,
@@ -65,6 +65,26 @@ export function usePendingSignups(enabled: boolean) {
     enabled,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
+  })
+}
+
+/** Pedidos de nova senha aguardando o link (sino dos administradores). */
+export function usePasswordRequests(enabled: boolean) {
+  return useQuery({
+    queryKey: ['users', 'password-requests'],
+    queryFn: () => api<PasswordRequest[]>('/users/password-requests'),
+    enabled,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useCreateResetLink() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<{ url: string; expires_at: string; name: string; phone: string | null }>(`/users/password-requests/${id}/link`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users', 'password-requests'] }),
   })
 }
 

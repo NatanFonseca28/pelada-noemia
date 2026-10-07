@@ -4,6 +4,7 @@ import { RequireAuth } from '@/auth/RequireAuth'
 import { RequirePage, RequireSuperadmin } from '@/auth/RequirePage'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/LoginPage'
+import { ForgotPasswordPage, ResetPasswordPage } from '@/pages/PasswordResetPages'
 import { RegisterPage } from '@/pages/RegisterPage'
 
 // Rotas carregadas sob demanda (o Suspense fica no Layout, com skeleton)
@@ -38,6 +39,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
+      <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
+      <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />

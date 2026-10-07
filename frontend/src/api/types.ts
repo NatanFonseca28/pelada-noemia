@@ -543,3 +543,13 @@ export interface MyFinance {
   amount_due: string
   pix_key: string | null
 }
+
+export interface PasswordRequest {
+  id: number
+  user_id: number
+  name: string
+  email: string
+  phone: string | null
+  requested_at: string
+  link_sent_at: string | null
+}

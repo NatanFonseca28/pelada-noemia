@@ -7,10 +7,11 @@ from app.core.config import get_settings
 from app.core.deps import CurrentUser, SessionDep
 from app.core.ratelimit import LOGIN_LIMIT, PASSWORD_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
 from app.models.user import User
-from app.schemas.auth import ChangePasswordIn, LoginIn, RegisterIn, TokenOut
+from app.schemas.auth import ChangePasswordIn, ForgotIn, LoginIn, RegisterIn, ResetIn, TokenOut
 from app.schemas.user import MeOut, UserOut
 from app.services.access_service import hidden_pages_for
 from app.services.auth_service import AuthService
+from app.services.password_reset_service import PasswordResetService
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
@@ -78,3 +79,21 @@ async def _me(session: AsyncSession, user: User) -> MeOut:
 @limiter.limit(PASSWORD_LIMIT)
 async def change_password(request: Request, data: ChangePasswordIn, user: CurrentUser, session: SessionDep):
     await AuthService(session).change_password(user, data.current_password, data.new_password)
+
+
+FORGOT_MESSAGE = "Pedido enviado. Um administrador vai te mandar o link para criar uma senha nova pelo WhatsApp."
+
+
+@router.post("/forgot", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit(REGISTER_LIMIT)
+async def forgot(request: Request, data: ForgotIn, session: SessionDep) -> dict:
+    """Esqueci minha senha (e-mail ou celular). Resposta sempre igual: não revela se a conta existe."""
+    await PasswordResetService(session).request(data.identifier, _ip(request), request.headers.get("user-agent"))
+    return {"detail": FORGOT_MESSAGE}
+
+
+@router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit(PASSWORD_LIMIT)
+async def reset_password(request: Request, data: ResetIn, session: SessionDep):
+    """Cria a senha nova a partir do link enviado pelo administrador (1 h, uso único). Derruba todas as sessões."""
+    await PasswordResetService(session).reset(data.token, data.new_password, _ip(request))
