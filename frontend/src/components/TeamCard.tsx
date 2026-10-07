@@ -115,7 +115,8 @@ export function TeamCard({
 }
 
 /** Goleiros fixos que não pertencem a nenhum time (só ficam em um time quando há um por time). */
-export function SharedGoalkeepers({ players }: { players: { player_id: number; name: string }[] }) {
+export function SharedGoalkeepers({ players = [] }: { players?: { player_id: number; name: string }[] }) {
+  // a API pode ainda não enviar o campo (front publicado antes do back)
   if (!players.length) return null
   return (
     <p className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm">
