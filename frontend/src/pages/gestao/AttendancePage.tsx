@@ -43,11 +43,13 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
   const busy = attendance.isPending || clearAttendance.isPending
   const error = attendance.error ?? clearAttendance.error
 
+  // `?? []`: API anterior não envia `absences` (site e API sobem em momentos diferentes)
   const rows = useMemo<Row[]>(() => {
-    const answered = new Set([...round.attendances, ...round.absences].map((a) => a.player_id))
+    const absences = round.absences ?? []
+    const answered = new Set([...round.attendances, ...absences].map((a) => a.player_id))
     return [
       ...round.attendances.map((a) => ({ ...a, group: 'VAI' as const })),
-      ...round.absences.map((a) => ({ ...a, group: 'NAO_VAI' as const })),
+      ...absences.map((a) => ({ ...a, group: 'NAO_VAI' as const })),
       ...players
         .filter((p) => p.active && !answered.has(p.id))
         .map((p) => ({ player_id: p.id, name: p.display_name, type: p.type, primary_position: p.primary_position, group: 'SEM_RESPOSTA' as const })),
