@@ -132,3 +132,29 @@ async def test_exporta_tabelas_escolhidas_e_restricoes(client, admin_headers, su
     # a exportação fica na auditoria com contagem e hash de cada tabela
     logs = (await client.get("/api/audit", params={"entity": "export"}, headers=superadmin_headers)).json()
     assert any("sha256" in (log["after"]["tables"].get("players") or {}) for log in logs)
+
+
+async def test_exporta_campeonato_com_sumula(client, admin_headers, mesario_headers, superadmin_headers):
+    """Tipos de todas as tabelas (UUID da súmula, JSON, horários) precisam sair nos dois formatos."""
+    from tests.api.test_stats import ev, roster, setup_tournament
+
+    _, t = await setup_tournament(client, admin_headers)
+    m = t["matches"][0]
+    _, rosters = await roster(client, admin_headers, m["id"])
+    home = m["home"]["id"]
+    r = await client.post(f"/api/matches/{m['id']}/events", json=ev("GOL", home, rosters[home][0]["player_id"]),
+                          headers=mesario_headers)
+    assert r.status_code in (200, 201), r.text
+
+    x = await client.get("/api/export/xlsx", headers=superadmin_headers)
+    assert x.status_code == 200, x.text
+    wb = load_workbook(BytesIO(x.content))
+    events = wb["match_events"]
+    header = [c.value for c in events[1]]
+    cid = events.cell(2, header.index("client_event_id") + 1).value
+    assert isinstance(cid, str) and len(cid) == 36
+    c = await client.get("/api/export/csv", headers=superadmin_headers)
+    manifest, files = _read_zip(c.content)
+    assert cid in files["match_events.csv"].decode()
+    counts = {t["tabela"]: t["registros"] for t in manifest["tabelas"]}
+    assert counts["match_events"] == 1 and counts["matches"] >= 1 and counts["team_players"] >= 12

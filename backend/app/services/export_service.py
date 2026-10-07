@@ -124,7 +124,9 @@ def _xlsx_value(value: Any) -> Any:
         return f"sha256:{hashlib.sha256(raw).hexdigest()} ({len(raw)} bytes)"
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
-    return value
+    if isinstance(value, (str, bool, int, float, Decimal, date, time)):
+        return value
+    return str(value)  # UUID, IP etc.: texto exato, como no CSV
 
 
 def _number_format(column) -> str | None:
