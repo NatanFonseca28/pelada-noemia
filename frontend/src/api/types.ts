@@ -131,6 +131,8 @@ export interface FinanceOverview {
   /** [anterior, atual] usados na regra de inadimplência */
   reference_months: string[]
   delinquent_count: number
+  /** devem pelo menos 1 dos 2 meses de referência ("Para cobrar") */
+  to_charge_count: number
 }
 
 export interface Delinquent {
@@ -138,8 +140,11 @@ export interface Delinquent {
   name: string
   phone: string | null
   whatsapp_opt_in: boolean
+  /** só os meses em aberto */
   months_due: string[]
   amount_due: string
+  /** deve os 2 meses (inadimplente) ou só 1 */
+  delinquent: boolean
   /** última cobrança registrada (por qualquer administrador) */
   last_charged_at: string | null
   last_charged_by: string | null

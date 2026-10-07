@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Check, MessageCircle, SkipForward } from 'lucide-react'
-import { useChargeMessage, useDelinquents, useRegisterCharge } from '@/api/finance'
+import { useChargeMessage, useRegisterCharge, useToCharge } from '@/api/finance'
 import type { Delinquent } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Badge, Button, ErrorState, ICON_STROKE, Modal, PlayerName, Skeleton, cx } from '@/components/ui'
@@ -23,6 +23,17 @@ function ChargeLink({ d, text, onOpened, children, className }: {
     <a href={whatsappChargeLink(d.phone, text)} target="_blank" rel="noopener noreferrer" onClick={onOpened} className={className}>
       {children}
     </a>
+  )
+}
+
+type Scope = 'todos' | 'dois' | 'um'
+
+/** "2 meses" (inadimplente) ou "1 mês" em aberto. */
+function OwedChip({ d }: { d: Delinquent }) {
+  return d.delinquent ? (
+    <span className="rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger-ink">2 meses</span>
+  ) : (
+    <span className="rounded-full bg-soft px-1.5 py-0.5 text-[11px] font-semibold text-ink">1 mês</span>
   )
 }
 
@@ -103,7 +114,15 @@ function ChargeAll({ list, ctx, template, onClose }: { list: Delinquent[]; ctx: 
 export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: string }) {
   const [open, setOpen] = useState(false)
   const [all, setAll] = useState(false)
-  const { data, isLoading, error, refetch } = useDelinquents(open && count > 0)
+  const [scope, setScope] = useState<Scope>('todos')
+  const { data: everyone, isLoading, error, refetch } = useToCharge(open && count > 0)
+  const data = everyone?.filter((d) => scope === 'todos' || (scope === 'dois' ? d.delinquent : !d.delinquent))
+  const twoCount = everyone?.filter((d) => d.delinquent).length ?? 0
+  const scopes: { id: Scope; label: string }[] = [
+    { id: 'todos', label: `Todos (${everyone?.length ?? 0})` },
+    { id: 'dois', label: `Devem 2 meses (${twoCount})` },
+    { id: 'um', label: `Devem 1 mês (${(everyone?.length ?? 0) - twoCount})` },
+  ]
   const { data: msg } = useChargeMessage()
   const { user } = useAuth()
   const register = useRegisterCharge()
@@ -127,11 +146,24 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1">
-              <p className="text-xs text-muted">Envia do WhatsApp deste aparelho, com a sua assinatura.</p>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quem cobrar">
+                {scopes.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    aria-pressed={scope === s.id}
+                    onClick={() => setScope(s.id)}
+                    className={cx('press min-h-[36px] rounded-full border px-3 text-sm', scope === s.id ? 'border-primary bg-primary/10 font-medium text-primary-ink' : 'border-line text-muted hover:bg-soft')}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
               <Button size="sm" onClick={() => setAll(true)} disabled={!withPhone}>
                 <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar todos ({withPhone})
               </Button>
             </div>
+            <p className="px-2 pb-1 text-xs text-muted">A mensagem sai do WhatsApp deste aparelho, com a sua assinatura.</p>
             <ul>
               {data?.map((d) => {
                 const text = renderChargeMessage(template, chargeValues(d, ctx))
@@ -140,6 +172,7 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
                     <div className="min-w-0 flex-1">
                       <PlayerName id={d.player_id} name={d.name} className="font-medium" />
                       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                        <OwedChip d={d} />
                         <span>{dueLabel(d.months_due)}</span>
                         <span className="tabular font-semibold text-ink">{money(d.amount_due)}</span>
                         {d.phone ? <span className="tabular">{formatPhone(d.phone)}</span> : <Badge color="yellow">sem WhatsApp</Badge>}

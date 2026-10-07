@@ -23,6 +23,11 @@ def is_delinquent(amounts: list[Decimal | None], fee: Decimal) -> bool:
     return bool(amounts) and not any(is_paid(a, fee) for a in amounts)
 
 
+def months_owed(months: list[date], amounts: list[Decimal | None], fee: Decimal) -> list[date]:
+    """Meses de referência ainda não quitados (parcial conta como em aberto)."""
+    return [m for m, a in zip(months, amounts, strict=True) if not is_paid(a, fee)]
+
+
 def amount_due(amounts: list[Decimal | None], fee: Decimal) -> Decimal:
     """Quanto falta nos meses de referência (desconta pagamentos parciais)."""
     return sum((max(fee - (a or Decimal(0)), Decimal(0)) for a in amounts), Decimal(0))

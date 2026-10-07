@@ -893,7 +893,7 @@ export function FinancePage() {
       ) : tab === 'mensalidades' ? (
         data.rows.length ? (
           <>
-            <ChargePanel count={data.delinquent_count} monthlyFee={data.config.monthly_fee} />
+            <ChargePanel count={data.to_charge_count} monthlyFee={data.config.monthly_fee} />
             <FeesGrid data={data} delinquentOnly={delinquentOnly} onDelinquentOnly={setDelinquentOnly} />
           </>
         ) : <EmptyState>Nenhuma mensalidade. Importe a planilha na aba “Importar / Config.”.</EmptyState>

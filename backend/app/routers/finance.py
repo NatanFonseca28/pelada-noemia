@@ -57,6 +57,12 @@ async def register_charge(data: ChargeIn, admin: AdminUser, session: SessionDep)
     return await FinanceService(session).charge(data.player_id, admin)
 
 
+@router.get("/to-charge", response_model=list[DelinquentOut])
+async def to_charge(admin: AdminUser, session: SessionDep):
+    """Para cobrar: mensalistas que devem os 2 últimos meses (inadimplentes) ou só 1 deles."""
+    return await FinanceService(session).delinquents(include_partial=True)
+
+
 @router.get("/delinquents", response_model=list[DelinquentOut])
 async def delinquents(admin: AdminUser, session: SessionDep):
     """Inadimplentes (sem pagar o mês atual nem o anterior), com contato e valor devido.

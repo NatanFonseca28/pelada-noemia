@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
 from app.domain.charge_message import CHARGE_VARIABLES, DEFAULT_CHARGE_MESSAGE
-from app.domain.delinquency import amount_due, is_delinquent, reference_months
+from app.domain.delinquency import amount_due, is_delinquent, months_owed, reference_months
 from app.models.audit import AuditLog
 from app.models.enums import PlayerType
 from app.models.finance import CashEntry, CashKind, CollectionItem, FinanceCollection, MonthlyFee
@@ -138,12 +138,23 @@ class FinanceService:
             year_total=sum((s.fees + s.income for s in summary), ZERO),
             reference_months=ref_months,
             delinquent_count=len(overdue),
+            to_charge_count=len(await self.owing()),
         )
 
     # ---------- Inadimplência ----------
     async def delinquency(self) -> dict[int, list[Decimal | None]]:
         """Mensalistas ativos sem pagar o mês atual nem o anterior → {player_id: valores pagos nos 2 meses}."""
         fee = (await self.get_config()).monthly_fee
+        return {pid: a for pid, a in (await self._reference_payments()).items() if is_delinquent(a, fee)}
+
+    async def owing(self) -> dict[int, list[Decimal | None]]:
+        """Mensalistas ativos com pelo menos um dos dois meses de referência em aberto (para cobrar)."""
+        fee = (await self.get_config()).monthly_fee
+        months = list(reference_months(today_local()))
+        return {pid: a for pid, a in (await self._reference_payments()).items() if months_owed(months, a, fee)}
+
+    async def _reference_payments(self) -> dict[int, list[Decimal | None]]:
+        """{player_id: valores pagos no (mês anterior, mês atual)} de cada mensalista ativo."""
         months = reference_months(today_local())
         players = list(await self.session.scalars(
             select(Player.id).where(Player.type == PlayerType.MENSALISTA, Player.active.is_(True))
@@ -156,22 +167,19 @@ class FinanceService:
                 select(MonthlyFee).where(MonthlyFee.player_id.in_(players), MonthlyFee.month.in_(months))
             )
         }
-        result = {}
-        for pid in players:
-            amounts = [paid.get((pid, m)) for m in months]
-            if is_delinquent(amounts, fee):
-                result[pid] = amounts
-        return result
+        return {pid: [paid.get((pid, m)) for m in months] for pid in players}
 
-    async def delinquents(self) -> list[DelinquentOut]:
+    async def delinquents(self, include_partial: bool = False) -> list[DelinquentOut]:
+        """Inadimplentes (devem os 2 meses). Com `include_partial`, também quem deve só 1 dos 2 (lista "Para cobrar")."""
         fee = (await self.get_config()).monthly_fee
-        overdue = await self.delinquency()
+        overdue = await (self.owing() if include_partial else self.delinquency())
         months = list(reference_months(today_local()))
         players = list(await self.session.scalars(select(Player).where(Player.id.in_(overdue)))) if overdue else []
         charged = await self._last_charges([p.id for p in players])
         out = [
             DelinquentOut(player_id=p.id, name=p.display_name, phone=p.phone, whatsapp_opt_in=p.whatsapp_opt_in,
-                          months_due=months, amount_due=amount_due(overdue[p.id], fee),
+                          months_due=months_owed(months, overdue[p.id], fee), amount_due=amount_due(overdue[p.id], fee),
+                          delinquent=is_delinquent(overdue[p.id], fee),
                           last_charged_at=charged.get(p.id, (None, None))[0],
                           last_charged_by=charged.get(p.id, (None, None))[1])
             for p in players
@@ -195,11 +203,11 @@ class FinanceService:
 
     async def charge(self, player_id: int, actor: User) -> ChargeOut:
         """Registra que `actor` abriu a cobrança no WhatsApp (o envio sai do aparelho dele)."""
-        overdue = await self.delinquency()
+        overdue = await self.owing()
         if player_id not in overdue:
-            raise ValidationError("Este jogador não está inadimplente")
+            raise ValidationError("Este jogador está com as mensalidades em dia")
         fee = (await self.get_config()).monthly_fee
-        months = [m.isoformat() for m in reference_months(today_local())]
+        months = [m.isoformat() for m in months_owed(list(reference_months(today_local())), overdue[player_id], fee)]
         await audit_service.record(
             self.session, user_id=actor.id, action="CHARGE", entity="charge", entity_id=player_id,
             after={"months": months, "amount": str(amount_due(overdue[player_id], fee))},

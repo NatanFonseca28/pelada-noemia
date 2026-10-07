@@ -16,6 +16,11 @@ export function useDelinquents(enabled = true) {
   return useQuery({ queryKey: ['finance', 'delinquents'], queryFn: () => api<Delinquent[]>('/finance/delinquents'), enabled })
 }
 
+/** "Para cobrar": quem deve os 2 últimos meses ou só 1 deles. */
+export function useToCharge(enabled = true) {
+  return useQuery({ queryKey: ['finance', 'to-charge'], queryFn: () => api<Delinquent[]>('/finance/to-charge'), enabled })
+}
+
 export function useChargeMessage() {
   return useQuery({ queryKey: ['finance', 'charge-message'], queryFn: () => api<ChargeMessage>('/finance/charge-message') })
 }
@@ -39,7 +44,10 @@ export function useRegisterCharge() {
         method: 'POST',
         body: json({ player_id: playerId }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['finance', 'delinquents'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', 'delinquents'] })
+      qc.invalidateQueries({ queryKey: ['finance', 'to-charge'] })
+    },
   })
 }
 

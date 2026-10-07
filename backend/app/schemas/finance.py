@@ -77,6 +77,8 @@ class FinanceOverview(BaseModel):
     year_total: Decimal
     reference_months: list[date]  # (anterior, atual) usados na regra de inadimplência
     delinquent_count: int
+    # devem pelo menos 1 dos 2 meses de referência (lista "Para cobrar")
+    to_charge_count: int = 0
 
 
 class DelinquentOut(BaseModel):
@@ -86,8 +88,9 @@ class DelinquentOut(BaseModel):
     name: str
     phone: str | None
     whatsapp_opt_in: bool
-    months_due: list[date]
+    months_due: list[date]  # só os meses em aberto
     amount_due: Decimal
+    delinquent: bool = True  # deve os 2 meses (inadimplente) ou só 1
     last_charged_at: datetime | None = None
     last_charged_by: str | None = None
 
