@@ -106,6 +106,16 @@ async def test_presenca_do_jogador(client, admin_headers, jogador_headers, sessi
     assert r.status_code == 422  # lista fechada
 
 
+async def test_equilibrio_so_para_admin(client, admin_headers, jogador_headers):
+    ids = await make_players(client, admin_headers, 15)
+    rid = await new_round(client, admin_headers)
+    await confirm_all(client, admin_headers, rid, ids)
+    d = (await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)).json()
+    assert all(t["strength_avg"] == 6 and t["level_avg"] == 3 and t["speed_avg"] == 3 for t in d["teams"])
+    seen = (await client.get(f"/api/rounds/{rid}", headers=jogador_headers)).json()
+    assert all(t["strength_avg"] is None and t["level_avg"] is None for t in seen["teams"])
+
+
 async def test_lista_mudou_depois_do_sorteio(client, admin_headers):
     ids = await make_players(client, admin_headers, 16)
     rid = await new_round(client, admin_headers)

@@ -259,6 +259,24 @@ def test_forca_soma_nivel_e_velocidade_com_peso_igual():
     assert DrawPlayer(3, "C", "ALA").strength == 6  # não informado conta 3 + 3
 
 
+@pytest.mark.parametrize("seed", range(40))
+def test_equilibrio_com_posicoes_desiguais_e_goleiros(seed):
+    """Vagas fora de posição e revezamento não podem desfazer o equilíbrio (refinamento por trocas)."""
+    import random
+    rng = random.Random(seed)
+    pos = ("ZAGUEIRO", "ALA", "ATACANTE")
+    players = [DrawPlayer(i, f"P{i}", pos[i % 3], level=rng.randint(1, 5), speed=rng.randint(1, 5))
+               for i in range(1, 17)] + make_players(gk=2, start=100)
+    r = run_draw(players, DrawConfig(balance_by_skill=True), seed=seed)
+    avgs = [t.strength_avg for t in r.teams]
+    assert max(avgs) - min(avgs) <= 0.6
+    for t in r.teams:  # composição preservada pelas trocas
+        linha = Counter(p.position for p in t.players if p.role == Role.LINHA)
+        assert linha == {"ZAGUEIRO": 2, "ALA": 2, "ATACANTE": 1}
+    team_of = {p.player_id: t.index for t in r.teams for p in t.players}
+    assert all(team_of[s.player_id] == s.team_index for s in r.substitutions)
+
+
 # ---------- reprodutibilidade ----------
 
 def test_mesma_seed_mesmo_resultado_independente_da_ordem():

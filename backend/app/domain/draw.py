@@ -17,7 +17,10 @@ Regras (ver plano, seção 0 e "Regras do sorteio"):
     em `shared_goalkeepers` e agarram para todos os times. Nível e velocidade de goleiro
     nunca entram no equilíbrio.
  8. "Equilibrar por nível e velocidade": força = nível + velocidade (1 a 5 cada, 3 se não
-    informado). Dentro de cada posição, o mais forte disponível vai para o time mais fraco.
+    informado). Dentro de cada posição, o mais forte disponível vai para o time mais fraco;
+    vagas fora de posição e revezamento também vão primeiro para o mais fraco. No fim, trocas
+    entre jogadores da mesma posição (e entre quem reveza) reduzem a diferença de força média
+    entre os times, sem mudar a composição.
  9. A seed e o resultado são devolvidos para persistência/auditoria.
 10. Sobra grande → `alternatives` para o admin decidir.
 11. "Time com um a menos" (opção do sorteio): com 3+ times, se faltar só 1 jogador de linha
@@ -28,7 +31,7 @@ import random
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
-ALGORITHM_VERSION = "2.0"
+ALGORITHM_VERSION = "2.1"
 DEFAULT_LEVEL = 3
 DEFAULT_SPEED = 3
 
@@ -161,6 +164,12 @@ class Team:
     def strength_sum(self) -> int:
         return sum(p.strength for p in self._line())
 
+    @property
+    def strength_avg(self) -> float:
+        """Força média por jogador de linha (compara times de 4, 5 e 6)."""
+        line = self._line()
+        return sum(p.strength for p in line) / len(line) if line else 0.0
+
 
 @dataclass
 class Substitution:
@@ -204,6 +213,7 @@ class DrawResult:
                 level_sum=team.level_sum,
                 speed_sum=team.speed_sum,
                 strength_sum=team.strength_sum,
+                strength_avg=round(team.strength_avg, 2),
             )
         return data
 
@@ -266,6 +276,42 @@ def _describe(num_teams: int, sizes: list[int], per_team: int, reserves: int) ->
     extra = f", {short} time(s) completado(s) por voluntário" if short else ""
     bench = f", {reserves} reserva(s)" if reserves else ""
     return f"{num_teams} times ({sizes_txt} na linha) — {mode}{extra}{bench}"
+
+
+def _imbalance(teams: list[Team]) -> tuple[float, float]:
+    """(maior - menor força média, variância): quanto menor, mais equilibrado."""
+    avgs = [t.strength_avg for t in teams]
+    mean = sum(avgs) / len(avgs)
+    return max(avgs) - min(avgs), sum((a - mean) ** 2 for a in avgs)
+
+
+def _swappable(a: TeamSlot, b: TeamSlot) -> bool:
+    if a.role != b.role or a.role == Role.GOLEIRO_FIXO or a.strength == b.strength:
+        return False
+    return a.role == Role.REVEZAMENTO or a.position == b.position
+
+
+def _refine_balance(teams: list[Team], max_steps: int = 100) -> None:
+    """Melhor troca por vez (mesma posição, mesmo papel) até não haver ganho. Determinístico."""
+    for _ in range(max_steps):
+        current = _imbalance(teams)
+        best: tuple[tuple[float, float], int, int, int, int] | None = None
+        for i, ti in enumerate(teams):
+            for j in range(i + 1, len(teams)):
+                tj = teams[j]
+                for x, a in enumerate(ti.players):
+                    for y, b in enumerate(tj.players):
+                        if not _swappable(a, b):
+                            continue
+                        ti.players[x], tj.players[y] = b, a
+                        score = _imbalance(teams)
+                        ti.players[x], tj.players[y] = a, b
+                        if score < (best[0] if best else current):
+                            best = (score, i, x, j, y)
+        if best is None:
+            return
+        _, i, x, j, y = best
+        teams[i].players[x], teams[j].players[y] = teams[j].players[y], teams[i].players[x]
 
 
 def max_teams(line_total: int, per_team: int) -> int:
@@ -402,6 +448,8 @@ def run_draw(
     leftovers = [p for pos in LINE_POSITIONS for p in groups[pos]]
     leftovers = _order_candidates(leftovers, rng, config.balance_by_skill)
     for pos in sorted(LINE_POSITIONS, key=lambda p: -len(missing[p])):
+        if config.balance_by_skill:
+            missing[pos].sort(key=lambda t: teams[t].strength_sum)  # o mais fraco recebe primeiro
         for t in missing[pos]:
             candidate, how = None, None
             for p in leftovers:
@@ -469,6 +517,12 @@ def run_draw(
         warnings.append(
             f"Sobraram {total_line - auto_n * per} jogadores de linha. Veja as formações alternativas antes de travar."
         )
+
+    if config.balance_by_skill:
+        _refine_balance(teams)
+        team_of = {s.player_id: team.index for team in teams for s in team.players}
+        for sub in substitutions:
+            sub.team_index = team_of[sub.player_id]
 
     for team in teams:
         order = {pos: i for i, pos in enumerate((GOALKEEPER, *LINE_POSITIONS))}

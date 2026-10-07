@@ -50,6 +50,10 @@ class TeamOut(BaseModel):
     has_rotation_gk: bool
     uses_volunteer_gk: bool
     uses_shared_gk: bool = False  # sem goleiro próprio: usa os goleiros fixos da pelada
+    # Médias por jogador de linha (só ADMIN; None para os demais). Força = nível + velocidade.
+    level_avg: float | None = None
+    speed_avg: float | None = None
+    strength_avg: float | None = None
 
 
 class DrawInfo(BaseModel):

@@ -4,8 +4,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from app.domain.draw import DrawConfig, DrawError, DrawPlayer, new_seed, run_draw
-from app.models.enums import Position
+from app.domain.draw import DEFAULT_LEVEL, DEFAULT_SPEED, DrawConfig, DrawError, DrawPlayer, new_seed, run_draw
+from app.models.enums import Position, UserRole
 from app.models.match_event import MatchEvent
 from app.models.player import Player
 from app.models.round import (
@@ -104,6 +104,15 @@ class RoundService:
                                 if tp.assigned_position in ("GOLEIRO_FIXO", "ZAGUEIRO", "ALA", "ATACANTE") else 9),
             )
             has_gk = any(tp.role == TeamRole.GOLEIRO_FIXO for tp in t.players)
+            line = [players[tp.player_id] for tp in t.players if tp.role != TeamRole.GOLEIRO_FIXO]
+            # Equilíbrio (nível/velocidade são internos: só ADMIN vê). Goleiro fixo não conta.
+            balance = {}
+            if viewer.role == UserRole.ADMIN and line:
+                levels = [p.skill_level or DEFAULT_LEVEL for p in line]
+                speeds = [p.speed or DEFAULT_SPEED for p in line]
+                balance = dict(level_avg=round(sum(levels) / len(line), 2),
+                               speed_avg=round(sum(speeds) / len(line), 2),
+                               strength_avg=round((sum(levels) + sum(speeds)) / len(line), 2))
             has_rot = any(tp.role == TeamRole.REVEZAMENTO for tp in t.players)
             team_out.append(
                 TeamOut(
@@ -127,6 +136,7 @@ class RoundService:
                     has_rotation_gk=has_rot,
                     uses_volunteer_gk=mode == "CAMPEONATO" and not has_gk and not has_rot and not shared_gks,
                     uses_shared_gk=not has_gk and not has_rot and bool(shared_gks),
+                    **balance,
                 )
             )
 

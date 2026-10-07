@@ -241,6 +241,10 @@ export interface TeamItem {
   uses_volunteer_gk: boolean
   /** sem goleiro próprio: usa os goleiros fixos da pelada */
   uses_shared_gk: boolean
+  /** médias por jogador de linha (força = nível + velocidade); só vêm para ADMIN */
+  level_avg?: number | null
+  speed_avg?: number | null
+  strength_avg?: number | null
 }
 
 export interface DrawAlternative {

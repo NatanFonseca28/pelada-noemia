@@ -105,6 +105,11 @@ export function TeamCard({
           />
         ))}
       </ul>
+      {team.strength_avg != null && (
+        <p className="border-t border-line px-3 py-1.5 text-xs text-muted tabular">
+          Força <strong className="text-ink">{dec(team.strength_avg)}</strong> · Nível {dec(team.level_avg)} · Velocidade {dec(team.speed_avg)}
+        </p>
+      )}
       <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs text-muted">
         <Shield size={14} strokeWidth={ICON_STROKE} aria-hidden />
         {team.has_fixed_gk ? 'Goleiro fixo' : team.has_rotation_gk ? 'Revezamento no gol' : team.uses_shared_gk ? 'Goleiros da pelada' : team.uses_volunteer_gk ? 'Voluntário do time de fora' : 'Sem goleiro'}
@@ -115,6 +120,24 @@ export function TeamCard({
 }
 
 /** Goleiros fixos que não pertencem a nenhum time (só ficam em um time quando há um por time). */
+const dec = (n: number | null | undefined) => (n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+/** Diferença entre a maior e a menor força média dos times (só ADMIN recebe os números). */
+export function BalanceSummary({ teams }: { teams: TeamItem[] }) {
+  const avgs = teams.map((t) => t.strength_avg).filter((a): a is number => a != null)
+  if (avgs.length < 2 || avgs.length !== teams.length) return null
+  const spread = Math.max(...avgs) - Math.min(...avgs)
+  const [color, label] = spread <= 0.5 ? (['green', 'Times equilibrados'] as const)
+    : spread <= 1 ? (['yellow', 'Equilíbrio razoável'] as const)
+    : (['red', 'Times desequilibrados'] as const)
+  return (
+    <span className="flex flex-wrap items-center gap-1.5" title="Força = nível + velocidade, média por jogador de linha (escala 2 a 10). Goleiro fixo não conta.">
+      <Badge color={color}>{label}</Badge>
+      <span>diferença de força {dec(spread)}</span>
+    </span>
+  )
+}
+
 export function SharedGoalkeepers({ players = [] }: { players?: { player_id: number; name: string }[] }) {
   // a API pode ainda não enviar o campo (front publicado antes do back)
   if (!players.length) return null

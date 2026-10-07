@@ -8,7 +8,7 @@ import type { Player, RoundDetail, TeamItem, TeamPlayerItem } from '@/api/types'
 import { DeleteRoundDialog } from '@/components/rounds/DeleteRoundDialog'
 import { ShareButton } from '@/components/ShareButton'
 import { teamsText } from '@/lib/share'
-import { DRAG_MIME, SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
+import { BalanceSummary, DRAG_MIME, SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
 import { CreateTournamentPanel } from './CreateTournamentPanel'
 import { Alert, Badge, Button, Card, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, TypeLegend, cx } from '@/components/ui'
 import { filledByLabel, formatDate, positionShort, roundStatusLabel, slotPositionShort } from '@/lib/labels'
@@ -237,6 +237,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
             <Badge color={d.mode === 'CAMPEONATO' ? 'green' : 'yellow'}>{d.mode === 'CAMPEONATO' ? 'Campeonato' : 'Pelada normal (2 gols ou 10 min)'}</Badge>
             <span>{d.num_teams} times · seed <code className="font-mono">{d.seed}</code> · {new Date(d.created_at).toLocaleString('pt-BR')}</span>
             {locked && <Badge color="blue">🔒 Travados</Badge>}
+            <BalanceSummary teams={round.teams} />
           </div>
           {d.warnings.map((w) => <Alert key={w}>{w}</Alert>)}
           {d.infos.map((i) => <Alert key={i} kind="info">{i}</Alert>)}
