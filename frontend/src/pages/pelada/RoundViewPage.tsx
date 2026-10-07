@@ -4,10 +4,12 @@ import { CalendarX2, Check, Settings2, Trophy, UserX, X } from 'lucide-react'
 import { useCurrentRound, useMyAttendance } from '@/api/rounds'
 import type { RoundDetail } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
+import { ShareButton } from '@/components/ShareButton'
 import { TeamCard } from '@/components/TeamCard'
 import { useToast } from '@/contexts/feedback'
 import { Alert, Avatar, Badge, Button, Card, EmptyState, ICON_STROKE, PageHeader, PlayerName, PositionBadge, QueryState, Skeleton, TypeLegend, cx, errorMessage } from '@/components/ui'
 import { formatDate, roundStatusLabel } from '@/lib/labels'
+import { teamsText } from '@/lib/share'
 
 const statusColor = { ABERTA: 'green', FECHADA: 'gray', TIMES_TRAVADOS: 'blue', ENCERRADA: 'gray' } as const
 const POS_ORDER = ['GOLEIRO_FIXO', 'ZAGUEIRO', 'ALA', 'ATACANTE', null] as const
@@ -107,9 +109,14 @@ function RoundView({ round }: { round: RoundDetail }) {
 
       {round.teams.length > 0 ? (
         <section aria-labelledby="times" className="mb-8">
-          <h2 id="times" className="mb-3 font-display text-2xl font-bold">
-            {round.status === 'TIMES_TRAVADOS' || round.status === 'ENCERRADA' ? 'Times' : 'Times sorteados (podem mudar)'}
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 id="times" className="font-display text-2xl font-bold">
+              {round.status === 'TIMES_TRAVADOS' || round.status === 'ENCERRADA' ? 'Times' : 'Times sorteados (podem mudar)'}
+            </h2>
+            {(round.status === 'TIMES_TRAVADOS' || round.status === 'ENCERRADA') && (
+              <ShareButton text={() => teamsText(round.date, round.teams)} label="Compartilhar times" />
+            )}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {round.teams.map((t) => <TeamCard key={t.id} team={t} />)}
           </div>

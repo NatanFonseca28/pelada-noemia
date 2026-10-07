@@ -10,9 +10,11 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Confetti } from '@/components/Confetti'
 import { KickoffNote } from '@/components/KickoffNote'
 import { MatchSheetPanel } from '@/components/MatchSheetPanel'
+import { ShareButton } from '@/components/ShareButton'
 import { useConfirm } from '@/contexts/feedback'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
 import { matchDuration } from '@/lib/matchTime'
+import { resultText } from '@/lib/share'
 import { Alert, Badge, Bracket, Button, Card, EmptyState, Field, ICON_STROKE, IconButton, LiveDot, Modal, PageHeader, PlayerName, ScoreStrip, Spinner, StandingsTable, TeamShield, cx, type BracketMatch } from '@/components/ui'
 import { formatDate, knockoutLabel, minutesText, tiebreakerLabel } from '@/lib/labels'
 
@@ -246,6 +248,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function TournamentView({ t }: { t: Tournament }) {
+  const { data: summary } = useTournamentSummary(t.id)
   const { hasRole } = useAuth()
   const canEdit = hasRole('ADMIN', 'MESARIO')
   const isAdmin = hasRole('ADMIN')
@@ -264,11 +267,16 @@ function TournamentView({ t }: { t: Tournament }) {
         title={casual ? 'Pelada normal' : 'Campeonato'}
         subtitle={`${formatDate(t.round_date)} — ${t.format_name}`}
         actions={
-          isAdmin && (
-            <Link to={`/gestao/rodadas/${t.round_id}`} className="press inline-flex min-h-[44px] items-center gap-1.5 rounded-btn px-3 text-sm font-medium text-primary-ink hover:bg-soft">
-              <Settings2 size={16} strokeWidth={ICON_STROKE} aria-hidden /> Gerenciar rodada
-            </Link>
-          )
+          <div className="flex flex-wrap items-center gap-1">
+            {t.matches.some((m) => m.status === 'ENCERRADA') && (
+              <ShareButton text={() => resultText(t, summary, (m) => `Jogo ${m.seq}`)} label={t.champion ? 'Compartilhar resultado' : 'Compartilhar parcial'} />
+            )}
+            {isAdmin && (
+              <Link to={`/gestao/rodadas/${t.round_id}`} className="press inline-flex min-h-[44px] items-center gap-1.5 rounded-btn px-3 text-sm font-medium text-primary-ink hover:bg-soft">
+                <Settings2 size={16} strokeWidth={ICON_STROKE} aria-hidden /> Gerenciar rodada
+              </Link>
+            )}
+          </div>
         }
       />
 

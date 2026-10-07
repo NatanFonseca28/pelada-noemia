@@ -6,6 +6,8 @@ import { usePlayers } from '@/api/queries'
 import { useRound, useRoundActions } from '@/api/rounds'
 import type { Player, RoundDetail, TeamItem, TeamPlayerItem } from '@/api/types'
 import { DeleteRoundDialog } from '@/components/rounds/DeleteRoundDialog'
+import { ShareButton } from '@/components/ShareButton'
+import { teamsText } from '@/lib/share'
 import { DRAG_MIME, TeamCard } from '@/components/TeamCard'
 import { CreateTournamentPanel } from './CreateTournamentPanel'
 import { Alert, Badge, Button, Card, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, TypeLegend, cx } from '@/components/ui'
@@ -190,6 +192,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
           Sorteio dos times <TypeLegend className="font-normal" />
         </h2>
         <div className="flex flex-wrap gap-2">
+          {locked && round.teams.length > 0 && <ShareButton text={() => teamsText(round.date, round.teams)} label="Compartilhar times" />}
           {editable && (
             <Button onClick={() => doDraw()} loading={draw.isPending}>
               🎲 {round.teams.length ? 'Refazer sorteio' : 'Sortear times'}

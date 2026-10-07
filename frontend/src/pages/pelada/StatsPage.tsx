@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { usePlayerStats } from '@/api/stats'
 import type { PlayerStats } from '@/api/types'
 import { Avatar, Card, EmptyState, PageHeader, PlayerName, Spinner, cx } from '@/components/ui'
+import { ShareButton } from '@/components/ShareButton'
+import { statsText } from '@/lib/share'
 
 type Key = keyof Pick<PlayerStats, 'goals' | 'assists' | 'presences' | 'win_rate' | 'titles' | 'yellows' | 'matches'>
 
@@ -57,12 +59,24 @@ export function StatsPage() {
       <PageHeader
         title="Estatísticas"
         actions={
+          <div className="flex flex-wrap items-center gap-1">
+          {rows.length > 0 && (
+            <ShareButton
+              label="Compartilhar"
+              text={() =>
+                statsText(ranking.label.replace(/^\S+\s/, ''), year ? String(year) : 'todos os tempos', rows, (s) =>
+                  ranking.sort === 'win_rate' ? `${String(s.win_rate).replace(".", ",")}% (${s.matches} jogos)` : ranking.sort === 'yellows' ? `${s.yellows} 🟨 ${s.reds} 🟥` : String(s[ranking.sort]),
+                )
+              }
+            />
+          )}
           <select className="input w-auto" value={year ?? ''} onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)} aria-label="Período">
             <option value="">Todos os tempos</option>
             {[thisYear, thisYear - 1, thisYear - 2].map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+          </div>
         }
       />
       <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg bg-soft p-1" role="tablist">
