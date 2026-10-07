@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Flag, Goal, Trash2 } from 'lucide-react'
+import { Flag, Goal, Sun, Trash2 } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useMatchSheet, useSheetActions } from '@/api/stats'
 import { reopenMatch, useMatchResult } from '@/api/tournaments'
 import { useQueryClient } from '@tanstack/react-query'
 import { useConfirm, useToast } from '@/contexts/feedback'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
+import { useWakeLock } from '@/hooks/useWakeLock'
 import type { EventType, MatchItem } from '@/api/types'
 import { eventLabel } from '@/lib/labels'
 import { teamColor } from '@/lib/teamColors'
@@ -37,6 +38,8 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
   const toast = useToast()
   const confirm = useConfirm()
   const sw = useStopwatch(`match-${match.id}`)
+  // quem lança a súmula não pode ter a tela apagando no meio do jogo
+  const wake = useWakeLock(canEdit && match.status !== 'ENCERRADA')
   const submit = useMatchResult()
   const qc = useQueryClient()
   const [pens, setPens] = useState<{ home: string; away: string }>({ home: '', away: '' })
@@ -161,6 +164,13 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
       {canEdit && match.status !== 'ENCERRADA' && (
         <div className="rounded-card border border-line py-4">
           <StopwatchView sw={sw} plannedSeconds={match.planned_seconds} hideFinish />
+          <p aria-live="polite" className="mt-2 flex min-h-[18px] items-center justify-center gap-1 text-xs text-muted">
+            {wake.locked && (
+              <>
+                <Sun size={13} strokeWidth={ICON_STROKE} aria-hidden /> Tela ligada
+              </>
+            )}
+          </p>
         </div>
       )}
 
