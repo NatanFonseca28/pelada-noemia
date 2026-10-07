@@ -78,6 +78,7 @@ class UserService:
         elif data.player_id is not None and data.player_id != user.player_id:
             await self._ensure_player_linkable(data.player_id)
             user.player_id = data.player_id
+            await self._copy_phone_to_player(user)
         if data.password:
             user.password_hash = hash_password(data.password)
             user.must_change_password = True  # senha redefinida pelo admin: o usuário troca no próximo acesso
@@ -98,6 +99,7 @@ class UserService:
         if data.player_id is not None:
             await self._ensure_player_linkable(data.player_id)
             user.player_id = data.player_id
+            await self._copy_phone_to_player(user)
         user.role = data.role
         user.status = UserStatus.ATIVO
         user.approved_by = actor.id
@@ -137,6 +139,14 @@ class UserService:
         )
         await self.users.delete(user)
         await self.session.commit()
+
+    async def _copy_phone_to_player(self, user: User) -> None:
+        """O celular do cadastro vira o WhatsApp do jogador vinculado, se ele ainda não tiver um."""
+        if not user.phone or user.player_id is None:
+            return
+        player = await self.players.get(user.player_id)
+        if player is not None and not player.phone:
+            player.phone = user.phone
 
     async def _ensure_player_linkable(self, player_id: int) -> None:
         if await self.players.get(player_id) is None:

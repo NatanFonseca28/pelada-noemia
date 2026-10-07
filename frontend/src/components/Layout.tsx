@@ -29,6 +29,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { usePageAccess } from '@/lib/pages'
+import { NotificationBell } from './NotificationBell'
 import { roleLabel } from '@/lib/labels'
 import { useTheme, type Theme } from '@/theme/ThemeProvider'
 import { ICON_STROKE, Modal, SkeletonList, cx } from './ui'
@@ -201,6 +202,7 @@ export function Layout() {
               <span className="block truncate text-xs text-muted">{user && roleLabel[user.role]}</span>
             </span>
           </NavLink>
+          <NotificationBell />
           {themeButton}
           <button onClick={logout} aria-label="Sair" title="Sair" className="press grid h-11 w-11 place-items-center rounded-btn text-muted hover:bg-soft hover:text-ink">
             <LogOut size={19} strokeWidth={ICON_STROKE} />
@@ -216,13 +218,14 @@ export function Layout() {
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <svg width="22" height="24" viewBox="0 0 40 44" aria-hidden className="shrink-0">
-            <path d="M20 2 L37 8 V22 C37 32 29.5 39 20 42 C10.5 39 3 32 3 22 V8 Z" fill="rgb(var(--primary))" />
-          </svg>
+          <img src="/logo-96.webp" width={28} height={28} alt="" aria-hidden className="shrink-0" />
           <span className="truncate font-display text-xl font-bold">{title}</span>
           {inGestao && <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent-ink">Gestão</span>}
         </div>
-        {themeButton}
+        <div className="flex items-center">
+          <NotificationBell />
+          {themeButton}
+        </div>
       </header>
 
       {/* Faixa da área de gestão (desktop) */}

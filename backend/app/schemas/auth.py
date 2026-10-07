@@ -1,7 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
 from app.core.passwords import StrongPassword
-
+from app.domain.phone import normalize_mobile
 from app.schemas.user import MeOut
 
 
@@ -14,6 +16,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     name: str = Field(min_length=2, max_length=120)
     password: StrongPassword
+    phone: Annotated[str, Field(max_length=30), AfterValidator(normalize_mobile)]
 
 
 class TokenOut(BaseModel):

@@ -18,6 +18,8 @@ export interface User {
   created_at: string
   /** senha definida/redefinida pelo admin: precisa trocar antes de usar o sistema */
   must_change_password?: boolean
+  /** celular informado no cadastro (E.164) */
+  phone?: string | null
   /** define a visibilidade das páginas; único que vê auditoria, log de acessos e design system */
   is_superadmin?: boolean
   /** páginas ocultas para a categoria do usuário logado (só em /auth/me e no login) */

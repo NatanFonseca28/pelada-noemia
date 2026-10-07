@@ -77,7 +77,7 @@ async def test_email_inexistente_tem_mesma_resposta(client, admin_headers):
 
 @pytest.mark.parametrize("pwd", ["curta1", "1234567890", "pelada1234", "aaaaaaaaaaaa", "Futebol123"])
 async def test_senhas_fracas_recusadas(client, pwd):
-    r = await client.post("/api/auth/register", json={"email": "x@test.com", "name": "Xis", "password": pwd})
+    r = await client.post("/api/auth/register", json={"email": "x@test.com", "name": "Xis", "password": pwd, "phone": "21987654321"})
     assert r.status_code == 422, pwd
 
 

@@ -44,3 +44,13 @@ def normalize_phone(raw: str | None) -> str | None:
     if len(digits) in (10, 11):
         return _br(digits)
     raise PhoneError("Informe DDD + número, ex.: (21) 98765-4321")
+
+
+def normalize_mobile(raw: str | None) -> str:
+    """Celular obrigatório (cadastro): no Brasil, DDD + 9 dígitos começando com 9."""
+    phone = normalize_phone(raw)
+    if phone is None:
+        raise PhoneError("Informe seu celular com DDD")
+    if phone.startswith("+55") and len(phone) != 14:
+        raise PhoneError("Informe um celular (9 dígitos depois do DDD), não um telefone fixo")
+    return phone

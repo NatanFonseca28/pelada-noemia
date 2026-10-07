@@ -29,7 +29,7 @@ class AuthService:
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
 
-    async def register(self, *, email: str, name: str, password: str) -> User:
+    async def register(self, *, email: str, name: str, password: str, phone: str | None = None) -> User:
         """Autocadastro: fica PENDENTE até aprovação do ADMIN."""
         if await self.users.get_by_email(email):
             raise ConflictError("E-mail já cadastrado")
@@ -40,6 +40,7 @@ class AuthService:
                 password_hash=hash_password(password),
                 role=UserRole.JOGADOR,
                 status=UserStatus.PENDENTE,
+                phone=phone,
             )
         )
         await self.session.flush()

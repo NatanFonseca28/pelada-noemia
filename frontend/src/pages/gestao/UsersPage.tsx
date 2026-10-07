@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Phone, Trash2 } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useApproveUser, useCreateUser, useDeleteUser, usePlayers, useRejectUser, useUpdateUser, useUsers } from '@/api/queries'
@@ -134,6 +135,11 @@ function PendingCard({ user, users, players }: { user: User; users: User[]; play
       <div>
         <p className="font-medium">{user.name}</p>
         <p className="text-sm text-muted">{user.email} · {formatDateTime(user.created_at)}</p>
+        {user.phone && (
+          <p className="flex items-center gap-1 text-sm text-muted">
+            <Phone size={13} strokeWidth={ICON_STROKE} aria-hidden /> <span className="tabular">{formatPhone(user.phone)}</span>
+          </p>
+        )}
       </div>
       {error && <Alert>{error}</Alert>}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -159,7 +165,8 @@ function PendingCard({ user, users, players }: { user: User; users: User[]; play
 }
 
 export function UsersPage() {
-  const [tab, setTab] = useState<'pendentes' | 'todos'>('todos')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<'pendentes' | 'todos'>(params.get('aba') === 'pendentes' ? 'pendentes' : 'todos')
   const [editing, setEditing] = useState<User | null | undefined>(undefined)
   const { data: users, isLoading } = useUsers()
   const { data: players = [] } = usePlayers()
@@ -227,7 +234,10 @@ export function UsersPage() {
             <div key={u.id} className="flex flex-wrap items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{u.name}</p>
-                <p className="truncate text-sm text-muted">{u.email}</p>
+                <p className="truncate text-sm text-muted">
+                  {u.email}
+                  {u.phone && <span className="tabular"> · {formatPhone(u.phone)}</span>}
+                </p>
               </div>
               <div className="flex flex-wrap gap-1">
                 <Badge color="blue">{roleLabel[u.role]}</Badge>

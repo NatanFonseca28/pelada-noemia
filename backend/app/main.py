@@ -72,7 +72,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
     errors = [
         {
             "field": ".".join(str(p) for p in err["loc"] if p != "body"),
-            "message": str(err["msg"]).removeprefix("Value error, "),
+            "message": "Campo obrigatório" if err["type"] == "missing" else str(err["msg"]).removeprefix("Value error, "),
         }
         for err in exc.errors()
     ]

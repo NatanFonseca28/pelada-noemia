@@ -57,6 +57,17 @@ export function useUsers(status?: UserStatus) {
   })
 }
 
+/** Cadastros aguardando aprovação (sino dos administradores): confere a cada minuto e ao voltar para a aba. */
+export function usePendingSignups(enabled: boolean) {
+  return useQuery({
+    queryKey: ['users', 'pending-signups'],
+    queryFn: () => api<User[]>('/users?status=PENDENTE'),
+    enabled,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
 export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({

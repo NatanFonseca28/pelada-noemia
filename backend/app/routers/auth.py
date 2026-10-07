@@ -34,7 +34,8 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 @limiter.limit(REGISTER_LIMIT)
 async def register(request: Request, data: RegisterIn, session: SessionDep):
     """Autocadastro público: o usuário fica PENDENTE até aprovação do ADMIN."""
-    return await AuthService(session).register(email=data.email, name=data.name, password=data.password)
+    return await AuthService(session).register(email=data.email, name=data.name, password=data.password,
+                                               phone=data.phone)
 
 
 @router.post("/login", response_model=TokenOut)

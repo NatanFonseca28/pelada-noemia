@@ -18,6 +18,7 @@ class UserOut(ORMModel):
     created_at: datetime
     must_change_password: bool = False
     is_superadmin: bool = False
+    phone: str | None = None
 
 
 class MeOut(UserOut):
