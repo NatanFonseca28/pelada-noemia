@@ -84,3 +84,29 @@ async def test_para_cobrar_inclui_quem_deve_um_dos_dois_meses(client, admin_head
     r = await client.post("/api/finance/charges", json={"player_id": so_atual}, headers=admin_headers)
     assert r.status_code == 201
     assert (await client.post("/api/finance/charges", json={"player_id": em_dia}, headers=admin_headers)).status_code == 422
+
+
+async def test_diarista_nunca_e_inadimplente_nem_cobrado(client, admin_headers):
+    from app.domain.delinquency import reference_months
+    from app.services.finance_service import today_local
+
+    prev, cur = reference_months(today_local())
+    body = {"name": "Diarista Zé", "type": "DIARISTA", "primary_position": "ALA", "phone": "21987654321"}
+    dia = (await client.post("/api/players", json=body, headers=admin_headers)).json()["id"]
+    men = (await client.post("/api/players", json={**body, "name": "Mensalista Zé", "type": "MENSALISTA"},
+                             headers=admin_headers)).json()["id"]
+    # diarista com pagamento parcial nos dois meses: mesmo assim não vira inadimplente
+    for m in (prev, cur):
+        await client.put("/api/finance/fees", json={"player_id": dia, "month": m.isoformat(), "amount": "10"},
+                         headers=admin_headers)
+
+    ov = (await client.get("/api/finance/overview", params={"year": cur.year}, headers=admin_headers)).json()
+    rows = {r["name"]: r for r in ov["rows"]}
+    assert rows["Mensalista Zé"]["delinquent"] and not rows["Diarista Zé"]["delinquent"]
+    assert ov["delinquent_count"] == 1 and ov["to_charge_count"] == 1
+    # grade: mensalistas primeiro, depois diaristas
+    types = [r["type"] for r in ov["rows"]]
+    assert types == sorted(types, key=lambda t: t != "MENSALISTA")
+    assert [d["player_id"] for d in (await client.get("/api/finance/to-charge", headers=admin_headers)).json()] == [men]
+    r = await client.post("/api/finance/charges", json={"player_id": dia}, headers=admin_headers)
+    assert r.status_code == 422

@@ -83,8 +83,8 @@ class FinanceService:
         players = list(
             await self.session.scalars(
                 select(Player).where(
-                    (Player.id.in_(player_ids))
-                    | ((Player.type == PlayerType.MENSALISTA) & Player.active.is_(True))
+                    # quem tem lançamento no ano + todos os ativos (mensalistas e diaristas, em blocos separados)
+                    (Player.id.in_(player_ids)) | Player.active.is_(True)
                 )
             )
         )
@@ -93,9 +93,9 @@ class FinanceService:
         for f in fees:
             cells[f.player_id][month_key(f.month)] = FeeCellOut(amount=f.amount, marker=f.marker)
 
-        # Ordem: quem tem pagamento no ano primeiro (pela 1ª mensalidade), depois os demais por nome
+        # Ordem: mensalistas antes de diaristas; em cada grupo, quem tem pagamento no ano primeiro, depois por nome
         first_paid = {pid: min(c) for pid, c in cells.items()}
-        players.sort(key=lambda p: (p.id not in first_paid, p.display_name.casefold()))
+        players.sort(key=lambda p: (p.type != PlayerType.MENSALISTA, p.id not in first_paid, p.display_name.casefold()))
         overdue = await self.delinquency()
         ref_months = list(reference_months(today_local()))
         rows = [
@@ -106,8 +106,9 @@ class FinanceService:
                 active=p.active,
                 cells=cells.get(p.id, {}),
                 total=sum((c.amount or ZERO for c in cells.get(p.id, {}).values()), ZERO),
-                delinquent=p.id in overdue,
-                months_due=ref_months if p.id in overdue else [],
+                # só mensalista é inadimplente: diarista paga por dia, no caixa
+                delinquent=p.type == PlayerType.MENSALISTA and p.id in overdue,
+                months_due=ref_months if p.type == PlayerType.MENSALISTA and p.id in overdue else [],
             )
             for p in players
         ]

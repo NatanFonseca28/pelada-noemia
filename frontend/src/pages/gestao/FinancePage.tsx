@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import {
@@ -32,7 +32,7 @@ import {
 } from 'lucide-react'
 import { ChargePanel } from '@/components/finance/ChargePanel'
 import { FinanceChart } from '@/components/finance/FinanceChart'
-import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Skeleton, Spinner, TypeLegend, cx } from '@/components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Skeleton, Spinner, TypeDot, TypeLegend, cx } from '@/components/ui'
 import { useCountUp } from '@/hooks/useCountUp'
 import { computeFlow, tileNumbers, toQuarters } from '@/lib/finance'
 import { cashCategoryLabel, monthAbbr, monthLong, monthShort, money } from '@/lib/labels'
@@ -224,11 +224,26 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.player_id} className="border-b border-line">
-                <td className="sticky left-0 z-10 max-w-[200px] bg-surface px-3 py-1.5 font-medium" title={row.name}>
+            {rows.map((row, i) => (
+              <Fragment key={row.player_id}>
+              {(i === 0 || rows[i - 1].type !== row.type) && (
+                <tr className={cx('border-b border-line', row.type === 'MENSALISTA' ? 'bg-mensalista/10' : 'bg-diarista/10')}>
+                  <th colSpan={data.months.length + 2} scope="colgroup" className="sticky left-0 px-3 py-1.5 text-left text-sm">
+                    <span className={cx('inline-flex items-center gap-2 font-display text-base font-bold', row.type === 'MENSALISTA' ? 'text-mensalista' : 'text-diarista')}>
+                      <TypeDot type={row.type} />
+                      {row.type === 'MENSALISTA' ? 'Mensalistas' : 'Diaristas'} ({rows.filter((r) => r.type === row.type).length})
+                    </span>
+                    {row.type === 'DIARISTA' && <span className="ml-2 text-xs font-normal text-muted">pagam por dia, no caixa; não entram em inadimplência</span>}
+                  </th>
+                </tr>
+              )}
+              <tr className="border-b border-line">
+                <td
+                  className={cx('sticky left-0 z-10 max-w-[200px] border-l-4 bg-surface px-3 py-1.5 font-medium', row.type === 'MENSALISTA' ? 'border-l-mensalista' : 'border-l-diarista')}
+                  title={row.name}
+                >
                   <PlayerName name={row.name} type={row.type} className="flex" />
-                  {row.delinquent && (
+                  {row.delinquent && row.type === 'MENSALISTA' && (
                     <span
                       className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger-ink"
                       title={`Não pagou ${dueLabel(row.months_due)}`}
@@ -256,6 +271,7 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
                 })}
                 <td className="px-3 py-1.5 text-right font-medium tabular-nums">{money(row.total)}</td>
               </tr>
+              </Fragment>
             ))}
           </tbody>
           <tfoot className="text-xs">
@@ -533,7 +549,7 @@ function CollectionCard({ collection }: { collection: Collection }) {
                 checked={item.paid}
                 onChange={(e) => m.updateItem.mutate({ id: item.id, paid: e.target.checked })}
               />
-              <span className={cx(item.paid && 'text-muted line-through')}>{item.name}</span>
+              <PlayerName id={item.player_id} name={item.name} className={cx(item.paid && 'text-muted line-through')} />
             {!item.player_id && <Badge color="gray">sem cadastro</Badge>}
             </label>
             <span className="tabular-nums">{money(item.amount)}</span>
