@@ -8,7 +8,7 @@ import type { Player, RoundDetail, TeamItem, TeamPlayerItem } from '@/api/types'
 import { DeleteRoundDialog } from '@/components/rounds/DeleteRoundDialog'
 import { DRAG_MIME, TeamCard } from '@/components/TeamCard'
 import { CreateTournamentPanel } from './CreateTournamentPanel'
-import { Alert, Badge, Button, Card, ICON_STROKE, Modal, PageHeader, Spinner, cx } from '@/components/ui'
+import { Alert, Badge, Button, Card, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, TypeLegend, cx } from '@/components/ui'
 import { filledByLabel, formatDate, positionShort, roundStatusLabel, slotPositionShort } from '@/lib/labels'
 
 const errorText = (err: unknown) => (err instanceof ApiError ? err.message : 'Algo deu errado')
@@ -38,7 +38,9 @@ function AttendancePanel({ round, players }: { round: RoundDetail; players: Play
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">Presença · {round.attendances.length} confirmados</h2>
+        <h2 className="flex flex-wrap items-center gap-x-3 font-semibold">
+          Presença · {round.attendances.length} confirmados <TypeLegend className="font-normal" />
+        </h2>
         <div className="flex flex-wrap gap-1 text-xs">
           <Badge color="green">Linha: {line}</Badge>
           <Badge>ZAG {counts.ZAGUEIRO ?? 0}</Badge>
@@ -76,9 +78,8 @@ function AttendancePanel({ round, players }: { round: RoundDetail; players: Play
                 <span className={cx('grid h-6 w-6 place-items-center rounded-full border text-xs', on ? 'border-primary bg-primary text-primary-on' : 'border-line')}>
                   {on && <Check key={`on-${p.id}`} size={14} strokeWidth={2.5} className="anim-pop-in" aria-hidden />}
                 </span>
-                <span className="flex-1 truncate">{p.display_name}</span>
+                <PlayerName name={p.display_name} type={p.type} className="flex-1" />
                 <span className="text-xs text-muted">{p.primary_position ? positionShort[p.primary_position] : '—'}</span>
-                {p.type === 'DIARISTA' && <Badge color="yellow">D</Badge>}
               </button>
             </li>
           )
@@ -185,7 +186,9 @@ function DrawPanel({ round }: { round: RoundDetail }) {
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">Sorteio dos times</h2>
+        <h2 className="flex flex-wrap items-center gap-x-3 font-semibold">
+          Sorteio dos times <TypeLegend className="font-normal" />
+        </h2>
         <div className="flex flex-wrap gap-2">
           {editable && (
             <Button onClick={() => doDraw()} loading={draw.isPending}>
@@ -263,7 +266,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
                   onClick={() => editable && setSelected(p)}
                   className="mx-0.5 rounded bg-surface px-1.5 py-0.5 font-medium underline decoration-dotted"
                 >
-                  {p.name}
+                  <PlayerName id={p.player_id} name={p.name} />
                 </button>
               ))}
             </Alert>

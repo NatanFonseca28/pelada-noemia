@@ -6,7 +6,7 @@ import { useCurrentRound, useMyAttendance } from '@/api/rounds'
 import type { RoundDetail } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { TeamCard } from '@/components/TeamCard'
-import { Alert, Badge, Button, Card, PageHeader } from '@/components/ui'
+import { Alert, Badge, Button, Card, PageHeader, PlayerName } from '@/components/ui'
 import { formatDate, roundStatusLabel, weekdayLabel } from '@/lib/labels'
 
 function CurrentRoundCard({ round }: { round: RoundDetail }) {
@@ -55,7 +55,9 @@ function CurrentRoundCard({ round }: { round: RoundDetail }) {
         round.attendances.length > 0 && (
           <details className="mt-4 text-sm">
             <summary className="cursor-pointer font-medium">Ver confirmados</summary>
-            <p className="mt-2 text-muted">{round.attendances.map((a) => a.name).join(', ')}</p>
+            <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-muted">
+              {round.attendances.map((a) => <PlayerName key={a.player_id} name={a.name} type={a.type} />)}
+            </p>
           </details>
         )
       )}

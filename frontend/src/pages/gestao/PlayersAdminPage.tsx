@@ -3,7 +3,7 @@ import { Phone, ShieldCheck } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useDeletePlayer, usePlayerPhoto, usePlayers, useSavePlayer } from '@/api/queries'
 import type { Player, PlayerInput, PlayerType, Position } from '@/api/types'
-import { Alert, Avatar, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Spinner } from '@/components/ui'
+import { Alert, Avatar, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Spinner, TypeBadge } from '@/components/ui'
 import { playerTypeLabel, positionLabel, positionShort } from '@/lib/labels'
 import { formatPhone, maskPhone } from '@/lib/phone'
 
@@ -216,7 +216,7 @@ export function PlayersAdminPage() {
         <Card className="divide-y divide-line">
           {data.map((p) => (
             <div key={p.id} className="flex items-center gap-3 p-3">
-              <Avatar name={p.display_name} url={p.photo_url} />
+              <Avatar name={p.display_name} url={p.photo_url} type={p.type} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">
                   {p.display_name}
@@ -229,7 +229,7 @@ export function PlayersAdminPage() {
                     <Badge color="yellow">Posição a definir</Badge>
                   )}
                   {p.secondary_position && <Badge>2ª: {positionLabel[p.secondary_position]}</Badge>}
-                  <Badge color={p.type === 'MENSALISTA' ? 'blue' : 'yellow'}>{playerTypeLabel[p.type]}</Badge>
+                  <TypeBadge type={p.type} />
                   {p.skill_level && <Badge>{'★'.repeat(p.skill_level)}</Badge>}
                   {!p.active && <Badge color="red">Inativo</Badge>}
                 </div>

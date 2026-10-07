@@ -1,8 +1,8 @@
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { usePlayerProfile } from '@/api/stats'
-import { Alert, Avatar, Badge, Card, EmptyState, Spinner } from '@/components/ui'
-import { formatDate, playerTypeLabel, positionText } from '@/lib/labels'
+import { Alert, Avatar, Badge, Card, EmptyState, Spinner, TypeBadge } from '@/components/ui'
+import { formatDate, positionText } from '@/lib/labels'
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
@@ -25,12 +25,12 @@ export function PlayerProfilePage() {
     <>
       <Link to="/estatisticas" className="mb-3 inline-block text-sm text-primary-ink hover:underline">‹ Estatísticas</Link>
       <div className="mb-5 flex items-center gap-4">
-        <Avatar name={s.name} url={s.photo_url} size={72} />
+        <Avatar name={s.name} url={s.photo_url} size={72} type={s.type} />
         <div>
           <h1 className="text-2xl font-bold">{s.name}</h1>
           <div className="mt-1 flex flex-wrap gap-1">
             <Badge color="green">{positionText(s.primary_position)}</Badge>
-            <Badge color={s.type === 'MENSALISTA' ? 'blue' : 'yellow'}>{playerTypeLabel[s.type]}</Badge>
+            <TypeBadge type={s.type} />
             {s.titles > 0 && <Badge color="yellow">🏆 {s.titles} título(s)</Badge>}
           </div>
         </div>

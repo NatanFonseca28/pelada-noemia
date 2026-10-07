@@ -17,6 +17,9 @@ export default {
         primary: { DEFAULT: token('primary'), ink: token('primary-ink'), on: token('on-primary') },
         accent: { DEFAULT: token('accent'), ink: token('accent-ink'), on: token('on-accent') },
         danger: { DEFAULT: token('danger'), ink: token('danger-ink'), on: token('on-danger') },
+        // tipo de jogador: sempre o mesmo par em todo o app (azul = mensalista, laranja = diarista)
+        mensalista: token('mensalista'),
+        diarista: token('diarista'),
         ok: { DEFAULT: token('ok'), ink: token('primary-ink') },
         board: { DEFAULT: token('board'), ink: token('board-ink') },
         // exclusivos de cartões

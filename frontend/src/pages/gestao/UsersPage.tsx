@@ -4,7 +4,7 @@ import { ApiError } from '@/api/client'
 import { useApproveUser, useCreateUser, usePlayers, useRejectUser, useUpdateUser, useUsers } from '@/api/queries'
 import type { Player, User, UserRole, UserStatus } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
-import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Spinner, cx } from '@/components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, cx } from '@/components/ui'
 import { formatDateTime, roleLabel, statusLabel } from '@/lib/labels'
 import { formatPhone } from '@/lib/phone'
 
@@ -206,7 +206,7 @@ export function UsersPage() {
               <div className="flex flex-wrap gap-1">
                 <Badge color="blue">{roleLabel[u.role]}</Badge>
                 <Badge color={statusColor[u.status]}>{statusLabel[u.status]}</Badge>
-                {u.player_id && <Badge>⚽ {playerName(u.player_id) ?? `#${u.player_id}`}</Badge>}
+                {u.player_id && <Badge><PlayerName id={u.player_id} name={playerName(u.player_id) ?? `#${u.player_id}`} /></Badge>}
                 {u.player_id && playerPhone(u.player_id) && (
                   <Badge>
                     <Phone size={11} strokeWidth={ICON_STROKE} aria-hidden /> {formatPhone(playerPhone(u.player_id))}

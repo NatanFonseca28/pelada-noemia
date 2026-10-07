@@ -3,7 +3,7 @@ import { Check, MessageCircle, SkipForward } from 'lucide-react'
 import { useChargeMessage, useDelinquents, useRegisterCharge } from '@/api/finance'
 import type { Delinquent } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
-import { Badge, Button, ErrorState, ICON_STROKE, Modal, Skeleton, cx } from '@/components/ui'
+import { Badge, Button, ErrorState, ICON_STROKE, Modal, PlayerName, Skeleton, cx } from '@/components/ui'
 import { chargeValues, chargedRecently, renderChargeMessage, since, whatsappChargeLink, type ChargeContext } from '@/lib/charge'
 import { money, monthAbbr } from '@/lib/labels'
 import { formatPhone } from '@/lib/phone'
@@ -71,7 +71,7 @@ function ChargeAll({ list, ctx, template, onClose }: { list: Delinquent[]; ctx: 
             {index + 1} de {queue.length}
           </p>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="font-display text-2xl font-bold">{current.name}</p>
+            <PlayerName id={current.player_id} name={current.name} className="font-display text-2xl font-bold" />
             <p className="tabular font-semibold">{money(current.amount_due)}</p>
           </div>
           <ChargedInfo d={current} />
@@ -138,7 +138,7 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
                 return (
                   <li key={d.player_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-2 py-2 text-sm first:border-0">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">{d.name}</p>
+                      <PlayerName id={d.player_id} name={d.name} className="font-medium" />
                       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                         <span>{dueLabel(d.months_due)}</span>
                         <span className="tabular font-semibold text-ink">{money(d.amount_due)}</span>

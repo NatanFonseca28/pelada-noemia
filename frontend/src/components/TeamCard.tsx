@@ -3,7 +3,7 @@ import { Hand, Shield } from 'lucide-react'
 import type { TeamItem, TeamPlayerItem } from '@/api/types'
 import { slotPositionShort } from '@/lib/labels'
 import { teamColor, teamInk } from '@/lib/teamColors'
-import { Badge, ICON_STROKE, cx } from './ui'
+import { Badge, ICON_STROKE, PlayerName, cx } from './ui'
 
 export const DRAG_MIME = 'application/x-pelada-player'
 
@@ -41,7 +41,7 @@ export function PlayerChip({
       <span className={cx('w-9 shrink-0 rounded-full py-0.5 text-center text-[11px] font-bold', gk ? 'bg-primary/15 text-primary-ink' : 'bg-soft text-muted')}>
         {slotPositionShort[player.position] ?? player.position}
       </span>
-      <span className="min-w-0 flex-1 truncate">{player.name}</span>
+      <PlayerName id={player.player_id} name={player.name} className="flex-1" />
       {rot && <Badge color="blue">🧤 reveza</Badge>}
       {sub && <Badge color="yellow">{player.filled_by === 'SEM_POSICAO' ? 'coringa' : 'improvisado'}</Badge>}
       {player.moved_manually && (

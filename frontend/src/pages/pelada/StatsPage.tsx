@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlayerStats } from '@/api/stats'
 import type { PlayerStats } from '@/api/types'
-import { Avatar, Card, EmptyState, PageHeader, Spinner, cx } from '@/components/ui'
+import { Avatar, Card, EmptyState, PageHeader, PlayerName, Spinner, cx } from '@/components/ui'
 
 type Key = keyof Pick<PlayerStats, 'goals' | 'assists' | 'presences' | 'win_rate' | 'titles' | 'yellows' | 'matches'>
 
@@ -104,8 +104,8 @@ export function StatsPage() {
                   <td className="px-3 py-1.5 font-semibold">{positions[i] <= 3 ? ['🥇', '🥈', '🥉'][positions[i] - 1] : positions[i]}</td>
                   <td className="py-1.5">
                     <Link to={`/jogadores/${s.player_id}`} className="flex items-center gap-2 hover:underline">
-                      <Avatar name={s.name} url={s.photo_url} size={28} />
-                      <span className="truncate font-medium">{s.name}</span>
+                      <Avatar name={s.name} url={s.photo_url} size={28} type={s.type} />
+                      <PlayerName name={s.name} type={s.type} className="font-medium" />
                     </Link>
                   </td>
                   {COLUMNS.map((c) => (

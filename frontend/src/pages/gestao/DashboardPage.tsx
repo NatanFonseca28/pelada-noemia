@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useDashboard } from '@/api/dashboard'
 import type { Dashboard, DashboardHighlight } from '@/api/types'
-import { Badge, Card, ICON_STROKE, PageHeader, QueryState, Skeleton, TeamShield, cx } from '@/components/ui'
+import { Badge, Card, ICON_STROKE, PageHeader, PlayerName, QueryState, Skeleton, TeamShield, cx } from '@/components/ui'
 import { formatDate, monthAbbr, money, roundStatusLabel } from '@/lib/labels'
 
 const statusColor = { ABERTA: 'green', FECHADA: 'yellow', TIMES_TRAVADOS: 'blue', ENCERRADA: 'gray' } as const
@@ -72,7 +72,7 @@ const more = (to: string, label: string) => (
 const player = (h: DashboardHighlight | null) =>
   h ? (
     <Link to={`/jogadores/${h.player_id}`} className="hover:underline">
-      {h.name} <span className="font-normal text-muted">({h.value})</span>
+      <PlayerName id={h.player_id} name={h.name} /> <span className="font-normal text-muted">({h.value})</span>
     </Link>
   ) : (
     '—'

@@ -32,7 +32,7 @@ import {
 } from 'lucide-react'
 import { ChargePanel } from '@/components/finance/ChargePanel'
 import { FinanceChart } from '@/components/finance/FinanceChart'
-import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Skeleton, Spinner, cx } from '@/components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Skeleton, Spinner, TypeLegend, cx } from '@/components/ui'
 import { useCountUp } from '@/hooks/useCountUp'
 import { computeFlow, tileNumbers, toQuarters } from '@/lib/finance'
 import { cashCategoryLabel, monthAbbr, monthLong, monthShort, money } from '@/lib/labels'
@@ -201,6 +201,7 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
           <AlertTriangle size={15} strokeWidth={ICON_STROKE} aria-hidden />
           Só inadimplentes ({data.delinquent_count})
         </button>
+        <TypeLegend />
         <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink" aria-label="Legenda">
           <li className="flex items-center gap-1"><span className="grid h-4 w-4 place-items-center rounded-full bg-ok text-primary-on"><Check size={10} strokeWidth={3} /></span> pago</li>
           <li className="flex items-center gap-1"><span className="h-4 w-4 rounded-full bg-accent/30" /> parcial</li>
@@ -226,10 +227,7 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
             {rows.map((row) => (
               <tr key={row.player_id} className="border-b border-line">
                 <td className="sticky left-0 z-10 max-w-[200px] bg-surface px-3 py-1.5 font-medium" title={row.name}>
-                  <span className="block truncate">
-                    {row.name}
-                    {row.type === 'DIARISTA' && <span className="ml-1 text-xs text-muted">(D)</span>}
-                  </span>
+                  <PlayerName name={row.name} type={row.type} className="flex" />
                   {row.delinquent && (
                     <span
                       className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger-ink"

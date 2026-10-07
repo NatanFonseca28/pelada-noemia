@@ -6,21 +6,7 @@ import type { RoundDetail } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { TeamCard } from '@/components/TeamCard'
 import { useToast } from '@/contexts/feedback'
-import {
-  Alert,
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  ICON_STROKE,
-  PageHeader,
-  PositionBadge,
-  QueryState,
-  Skeleton,
-  cx,
-  errorMessage,
-} from '@/components/ui'
+import { Alert, Avatar, Badge, Button, Card, EmptyState, ICON_STROKE, PageHeader, PlayerName, PositionBadge, QueryState, Skeleton, TypeLegend, cx, errorMessage } from '@/components/ui'
 import { formatDate, roundStatusLabel } from '@/lib/labels'
 
 const statusColor = { ABERTA: 'green', FECHADA: 'gray', TIMES_TRAVADOS: 'blue', ENCERRADA: 'gray' } as const
@@ -131,7 +117,10 @@ function RoundView({ round }: { round: RoundDetail }) {
       ) : null}
 
       <section aria-labelledby="confirmados">
-        <h2 id="confirmados" className="mb-3 font-display text-2xl font-bold">Confirmados</h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="confirmados" className="font-display text-2xl font-bold">Confirmados</h2>
+          <TypeLegend />
+        </div>
         {round.attendances.length === 0 ? (
           <Card>
             <EmptyState icon={<UserX size={22} strokeWidth={ICON_STROKE} />} title="Ninguém confirmou ainda">
@@ -148,9 +137,8 @@ function RoundView({ round }: { round: RoundDetail }) {
                 <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                   {people.map((a, i) => (
                     <li key={a.player_id} className="anim-rise flex min-h-[48px] items-center gap-2 rounded-btn bg-surface px-2 shadow-card" style={{ '--i': i } as CSSProperties}>
-                      <Avatar name={a.name} size={32} />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.name}</span>
-                      {a.type === 'DIARISTA' && <span className="text-[11px] text-muted">diarista</span>}
+                      <Avatar name={a.name} size={32} type={a.type} />
+                      <PlayerName name={a.name} type={a.type} className="flex-1 text-sm font-medium" />
                     </li>
                   ))}
                 </ul>

@@ -10,7 +10,7 @@ import { useWakeLock } from '@/hooks/useWakeLock'
 import type { EventType, MatchItem } from '@/api/types'
 import { eventLabel } from '@/lib/labels'
 import { teamColor } from '@/lib/teamColors'
-import { Alert, Button, CardIcon, ICON_STROKE, Spinner, StopwatchView, cx } from './ui'
+import { Alert, Button, CardIcon, ICON_STROKE, PlayerName, Spinner, StopwatchView, cx } from './ui'
 
 function EventIcon({ type, animate }: { type: EventType; animate?: boolean }) {
   if (type === 'AMARELO') return <CardIcon color="yellow" animate={animate} />
@@ -215,7 +215,7 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
                   step.type === 'GOL' ? setStep({ kind: 'assist', teamId: pickTeam, scorerId: p.player_id }) : register(step.type, pickTeam, p.player_id)
                 }
               >
-                {p.name}
+                <PlayerName id={p.player_id} name={p.name} />
               </Button>
             ))}
             {step.type === 'GOL' && (
@@ -235,7 +235,7 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
               .filter((p) => p.player_id !== step.scorerId)
               .map((p) => (
                 <Button key={p.player_id} variant="secondary" className="justify-start" loading={add.isPending} onClick={() => register('GOL', step.teamId, step.scorerId, p.player_id)}>
-                  {p.name}
+                  <PlayerName id={p.player_id} name={p.name} />
                 </Button>
               ))}
           </div>
@@ -258,7 +258,7 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
                   <span className="sr-only">{eventLabel[e.type]}</span>
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: team ? teamColor(team.name, team.color) : undefined }} />
                   <span className="flex-1">
-                    {e.player_name ?? <em className="text-muted">sem autor</em>}
+                    {e.player_name ? <PlayerName id={e.player_id} name={e.player_name} /> : <em className="text-muted">sem autor</em>}
                     {e.type === 'GOL_CONTRA' && <span className="text-muted"> (contra)</span>}
                     {e.assist_name && <span className="text-muted"> · assist. {e.assist_name}</span>}
                   </span>

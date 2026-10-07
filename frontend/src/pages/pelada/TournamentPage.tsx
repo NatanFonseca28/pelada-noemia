@@ -12,26 +12,7 @@ import { MatchSheetPanel } from '@/components/MatchSheetPanel'
 import { useConfirm } from '@/contexts/feedback'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
 import { matchDuration } from '@/lib/matchTime'
-import {
-  Alert,
-  Badge,
-  Bracket,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  ICON_STROKE,
-  IconButton,
-  LiveDot,
-  Modal,
-  PageHeader,
-  ScoreStrip,
-  Spinner,
-  StandingsTable,
-  TeamShield,
-  cx,
-  type BracketMatch,
-} from '@/components/ui'
+import { Alert, Badge, Bracket, Button, Card, EmptyState, Field, ICON_STROKE, IconButton, LiveDot, Modal, PageHeader, PlayerName, ScoreStrip, Spinner, StandingsTable, TeamShield, cx, type BracketMatch } from '@/components/ui'
 import { formatDate, knockoutLabel, minutesText, tiebreakerLabel } from '@/lib/labels'
 
 const errorText = (err: unknown) => (err instanceof ApiError ? err.message : 'Algo deu errado')
@@ -226,7 +207,7 @@ function SummaryCard({ tournamentId }: { tournamentId: number }) {
             <>
               {data.top_scorers.map((s) => (
                 <p key={s.player_id} className="text-lg font-semibold">
-                  <Link to={`/jogadores/${s.player_id}`} className="hover:underline">{s.name}</Link>{' '}
+                  <Link to={`/jogadores/${s.player_id}`} className="hover:underline"><PlayerName id={s.player_id} name={s.name} /></Link>{' '}
                   <span className="text-sm font-normal text-muted">{s.goals} gol(s) · Time {s.team_name}</span>
                 </p>
               ))}
