@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   BarChart3,
   CalendarCheck,
+  CircleUserRound,
   Dices,
   Home,
   EyeOff,
@@ -51,6 +52,7 @@ const PELADA: NavItem[] = [
   { to: '/campeonato', label: 'Campeonato', icon: Trophy },
   { to: '/estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { to: '/jogadores', label: 'Jogadores', icon: Shirt },
+  { to: '/minha-area', label: 'Minha área', icon: CircleUserRound },
 ]
 
 // Área de gestão (admin)
@@ -265,7 +267,7 @@ export function Layout() {
               aria-haspopup="dialog"
               className={cx(
                 'press flex min-h-[60px] w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium',
-                inGestao || pathname.startsWith('/jogadores') || pathname === '/conta' ? 'text-primary-ink' : 'text-muted',
+                inGestao || pathname.startsWith('/jogadores') || pathname === '/minha-area' || pathname === '/conta' ? 'text-primary-ink' : 'text-muted',
               )}
             >
               <span className="grid h-7 w-12 place-items-center rounded-full">
@@ -280,7 +282,7 @@ export function Layout() {
       {/* "Mais" (celular): bottom sheet com o restante da navegação */}
       <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="Mais">
         <div className="space-y-1">
-          {!isHidden(PELADA[4].to) && <SideLink item={PELADA[4]} onNavigate={() => setMoreOpen(false)} />}
+          {PELADA.slice(4).filter((i) => !isHidden(i.to)).map((i) => <SideLink key={i.to} item={i} onNavigate={() => setMoreOpen(false)} />)}
           <SideLink item={{ to: '/conta', label: 'Minha conta', icon: KeyRound }} onNavigate={() => setMoreOpen(false)} />
           {admin && gestao.length > 0 && (
             <>

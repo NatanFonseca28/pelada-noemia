@@ -2,9 +2,10 @@ from datetime import date
 
 from fastapi import APIRouter, File, Query, UploadFile, status
 
-from app.core.deps import AdminUser, SessionDep, SuperAdminUser
+from app.core.deps import AdminUser, CurrentUser, SessionDep, SuperAdminUser
 from app.core.errors import ValidationError
 from app.schemas.finance import (
+    MyFinanceOut,
     ChargeIn,
     ChargeMessageIn,
     ChargeMessageOut,
@@ -23,7 +24,7 @@ from app.schemas.finance import (
     ImportResult,
 )
 from app.services.finance_import_service import FinanceImportService, read_workbook
-from app.services.finance_service import FinanceService
+from app.services.finance_service import FinanceService, today_local
 
 router = APIRouter(prefix="/finance", tags=["Financeiro (ADMIN)"])
 
@@ -38,6 +39,12 @@ def _year(year: int | None) -> int:
 async def overview(admin: AdminUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
     """Grade de mensalidades do ano, resumo mensal e saldo do caixa."""
     return await FinanceService(session).overview(_year(year))
+
+
+@router.get("/me", response_model=MyFinanceOut)
+async def my_finance(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+    """Mensalidades do próprio jogador (qualquer usuário logado; só os dados dele)."""
+    return await FinanceService(session).my_finance(user, year or today_local().year)
 
 
 @router.get("/charge-message", response_model=ChargeMessageOut)

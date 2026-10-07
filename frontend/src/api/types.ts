@@ -527,3 +527,19 @@ export interface AccessLogEntry {
   user_agent: string | null
   created_at: string
 }
+
+// ---------- Área do jogador ----------
+export type MyMonthStatus = 'paid' | 'partial' | 'open' | 'late' | 'future' | 'none'
+
+export interface MyFinance {
+  has_player: boolean
+  player_name: string | null
+  type: PlayerType | null
+  year: number
+  monthly_fee: string
+  months: { month: string; amount: string | null; marker: string | null; status: MyMonthStatus }[]
+  total_paid: string
+  months_due: string[]
+  amount_due: string
+  pix_key: string | null
+}

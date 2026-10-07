@@ -6,6 +6,7 @@ HIDEABLE_PAGES: dict[str, str] = {
     "/campeonato": "Campeonato",
     "/estatisticas": "Estatísticas",
     "/jogadores": "Jogadores",
+    "/minha-area": "Minha área",
     "/gestao/dashboard": "Dashboard",
     "/gestao/rodadas": "Rodadas e sorteio",
     "/gestao/jogadores": "Cadastro de jogadores",

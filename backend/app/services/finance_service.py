@@ -31,6 +31,8 @@ from app.schemas.finance import (
     FinanceConfig,
     FinanceOverview,
     MonthSummary,
+    MyFinanceOut,
+    MyMonth,
 )
 from app.services import audit_service
 
@@ -215,6 +217,47 @@ class FinanceService:
         )
         await self.session.commit()
         return ChargeOut(player_id=player_id, charged_at=datetime.now(TZ), charged_by=actor.name.split()[0])
+
+    async def my_finance(self, user: User, year: int) -> MyFinanceOut:
+        """Mensalidades do jogador vinculado ao usuário, mês a mês, e o que está em aberto agora."""
+        config = await self.get_config()
+        fee = config.monthly_fee
+        player = await self.session.get(Player, user.player_id) if user.player_id else None
+        if player is None:
+            return MyFinanceOut(has_player=False, year=year, monthly_fee=fee)
+        fees = {f.month: f for f in await self.session.scalars(select(MonthlyFee).where(MonthlyFee.player_id == player.id))}
+        first = min((m for m, f in fees.items() if f.amount is not None), default=None)
+        today = today_local().replace(day=1)
+        ref = list(reference_months(today_local()))
+        mensalista = player.type == PlayerType.MENSALISTA and player.active
+
+        def status(month: date) -> str:
+            f = fees.get(month)
+            amount = f.amount if f else None
+            if amount is not None and amount >= fee:
+                return "paid"
+            if amount:
+                return "partial"
+            if month > today:
+                return "future"
+            if not mensalista or ((first is None or month < first) and month not in ref):
+                return "none"
+            return "open" if month == today else "late"
+
+        months = []
+        for n in range(1, 13):
+            m = date(year, n, 1)
+            f = fees.get(m)
+            months.append(MyMonth(month=m, amount=f.amount if f else None, marker=f.marker if f else None, status=status(m)))
+        amounts = [fees[m].amount if m in fees else None for m in ref]
+        due = months_owed(ref, amounts, fee) if mensalista else []
+        current = await SettingsRepository(self.session).get_current()
+        return MyFinanceOut(
+            has_player=True, player_name=player.display_name, type=player.type.value, year=year, monthly_fee=fee,
+            months=months,
+            total_paid=sum((f.amount for m, f in fees.items() if m.year == year and f.amount), ZERO),
+            months_due=due, amount_due=amount_due(amounts, fee) if due else ZERO, pix_key=current.pix_key,
+        )
 
     async def charge_message(self) -> ChargeMessageOut:
         current = await SettingsRepository(self.session).get_current()

@@ -182,3 +182,26 @@ class ImportResult(BaseModel):
     collections: int
     opening_balance: Decimal | None
     opening_month: date | None
+
+
+class MyMonth(BaseModel):
+    month: date
+    amount: Decimal | None
+    marker: str | None
+    # paid | partial | open (mês atual em aberto) | late (atrasado) | future | none (não se aplica)
+    status: str
+
+
+class MyFinanceOut(BaseModel):
+    """Mensalidades do próprio jogador (área do jogador)."""
+
+    has_player: bool
+    player_name: str | None = None
+    type: str | None = None
+    year: int
+    monthly_fee: Decimal
+    months: list[MyMonth] = []
+    total_paid: Decimal = Decimal("0.00")
+    months_due: list[date] = []
+    amount_due: Decimal = Decimal("0.00")
+    pix_key: str | None = None

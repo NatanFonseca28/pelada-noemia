@@ -17,6 +17,7 @@ const PlayerProfilePage = named(() => import('@/pages/pelada/PlayerProfilePage')
 const StatsPage = named(() => import('@/pages/pelada/StatsPage'), 'StatsPage')
 const TournamentPage = named(() => import('@/pages/pelada/TournamentPage'), 'TournamentPage')
 const LatestTournamentPage = named(() => import('@/pages/pelada/TournamentPage'), 'LatestTournamentPage')
+const MyAreaPage = named(() => import('@/pages/pelada/MyAreaPage'), 'MyAreaPage')
 const AccountPage = named(() => import('@/pages/AccountPage'), 'AccountPage')
 const DashboardPage = named(() => import('@/pages/gestao/DashboardPage'), 'DashboardPage')
 const RoundsPage = named(() => import('@/pages/gestao/RoundsPage'), 'RoundsPage')
@@ -46,6 +47,7 @@ export function App() {
           <Route path="jogadores" element={<PlayersListPage />} />
           <Route path="jogadores/:id" element={<PlayerProfilePage />} />
           <Route path="estatisticas" element={<StatsPage />} />
+          <Route path="minha-area" element={<MyAreaPage />} />
           <Route path="campeonato" element={<LatestTournamentPage />} />
           <Route path="campeonato/:id" element={<TournamentPage />} />
           <Route path="gestao" element={<RequireAuth roles={['ADMIN']} />}>
