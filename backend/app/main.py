@@ -6,13 +6,16 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
+from app.core.deps import SuperAdminUser
 from app.core.errors import AppError
+from app.core.monitoring import init_monitoring
 from app.core.ratelimit import limiter, rate_limit_handler
 from app.core.security_log import configure_logging
 from app.routers import access, audit, auth, dashboard, export, finance, media, players, rounds, settings, stats, tournaments, users
 
 app_settings = get_settings()  # em produção, falha aqui se a configuração for insegura
 configure_logging(json_logs=app_settings.is_production)
+init_monitoring()  # Sentry, só se SENTRY_DSN estiver definido
 
 app = FastAPI(
     title="Pelada Manager API",
@@ -83,6 +86,12 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 api = APIRouter(prefix="/api")
 for module in (auth, users, players, rounds, tournaments, stats, settings, finance, dashboard, export, audit, access, media):
     api.include_router(module.router)
+
+
+@api.post("/_debug/sentry", tags=["Infra"], include_in_schema=False)
+async def debug_sentry(admin: SuperAdminUser) -> None:
+    """Gera um erro de propósito para conferir se o aviso chega no Sentry (só superadmin)."""
+    raise RuntimeError("Teste do Sentry disparado pelo superadmin")
 
 
 @api.get("/health", tags=["Infra"])

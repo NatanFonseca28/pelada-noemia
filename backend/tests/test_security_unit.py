@@ -54,3 +54,18 @@ def test_producao_recusa_endpoint_pooler_do_neon():
         Settings(environment="production", jwt_secret="x" * 40, cookie_secure=True,
                  cors_origins="https://pelada.vercel.app", allowed_hosts="pelada-api.onrender.com",
                  database_url="postgresql://app:Senha-Forte-123@ep-x-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require")
+
+
+def test_sentry_nao_envia_dados_pessoais():
+    from app.core.monitoring import _scrub
+
+    event = {
+        "request": {"url": "https://x/api/auth/login", "headers": {"Authorization": "Bearer abc", "Cookie": "pelada_refresh=1"},
+                    "cookies": {"a": "b"}, "data": {"password": "segredo"}, "query_string": "token=xyz"},
+        "user": {"email": "a@b.com"},
+        "exception": {"values": [{"value": "falhou para +55 21 98765-4321"}]},
+    }
+    out = _scrub(event, {})
+    assert out["request"]["headers"]["Authorization"] == "[removido]" and "cookies" not in out["request"]
+    assert "data" not in out["request"] and "query_string" not in out["request"] and "user" not in out
+    assert "98765" not in out["exception"]["values"][0]["value"]

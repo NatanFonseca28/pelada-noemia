@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     media_dir: Path = Path("media")
     max_photo_mb: int = 3
 
+    # Sentry (avisos de erro). Vazio = desligado.
+    sentry_dsn: str | None = None
+
     admin_email: str = "admin@pelada.app"
     admin_password: str = "admin123-dev-only"
 

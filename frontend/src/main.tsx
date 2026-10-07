@@ -5,10 +5,14 @@ import { BrowserRouter } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { ConfirmProvider, ToastProvider } from '@/components/ui'
+import { ErrorBoundary, initMonitoring } from '@/lib/monitoring'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { App } from './App'
+import { FatalError } from './components/FatalError'
 import './fonts.css'
 import './index.css'
+
+initMonitoring()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +25,7 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ErrorBoundary fallback={<FatalError />}>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>
@@ -34,5 +39,6 @@ createRoot(document.getElementById('root')!).render(
         </BrowserRouter>
       </ThemeProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )
