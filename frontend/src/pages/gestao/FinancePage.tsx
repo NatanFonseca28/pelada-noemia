@@ -26,6 +26,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  UserMinus,
   Users,
   Wallet,
   type LucideIcon,
@@ -874,6 +875,8 @@ export function FinancePage() {
   const nowKey = currentMonthKey()
   const thisMonth = useMemo(() => data?.summary.find((s) => monthKey(s.month) === nowKey), [data, nowKey])
   const mensalistas = data?.rows.filter((r) => r.type === 'MENSALISTA' && r.active).length ?? 0
+  // "F" no mês atual: fora, não é inadimplência
+  const outThisMonth = data?.rows.filter((r) => r.type === 'MENSALISTA' && r.active && r.cells[nowKey]?.marker?.trim().toUpperCase() === 'F').length ?? 0
   const tiles = useMemo(() => (data ? tileNumbers(computeFlow(data)) : null), [data])
   const [delinquentOnly, setDelinquentOnly] = useState(onlyDelinquents)
 
@@ -892,16 +895,17 @@ export function FinancePage() {
 
       {error && <Alert>{errorText(error, 'Erro ao carregar o financeiro')}</Alert>}
       {isLoading && (
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[104px] rounded-card" />)}
+        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+          {[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-[104px] rounded-card" />)}
         </div>
       )}
       {data && tiles && (
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
           <StatTile label="Saldo em caixa" icon={Wallet} tone="ink" value={tiles.saldo} delta={tiles.deltaSaldo} deltaLabel={tiles.prevLabel} />
           <StatTile label={tiles.refLabel ? `Entradas em ${tiles.refLabel}` : 'Entradas'} icon={ArrowUpRight} tone="ok" value={tiles.entradas} delta={tiles.deltaEntradas} deltaLabel={tiles.prevLabel} />
           <StatTile label={tiles.refLabel ? `Saídas em ${tiles.refLabel}` : 'Saídas'} icon={ArrowDownRight} tone="red" value={tiles.saidas} delta={tiles.deltaSaidas} deltaLabel={tiles.prevLabel} invertDelta />
           <StatTile label="Mensalistas em dia (mês atual)" icon={Users} value={thisMonth ? `${thisMonth.paid_count}/${mensalistas}` : '—'} />
+          <StatTile label="Mensalistas fora (mês atual)" icon={UserMinus} value={thisMonth ? `${outThisMonth}/${mensalistas}` : '—'} hint="marcados com F, não contam como dívida" />
           <StatTile
             label="Inadimplentes"
             icon={AlertTriangle}
