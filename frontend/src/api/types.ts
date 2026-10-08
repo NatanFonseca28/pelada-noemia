@@ -102,6 +102,8 @@ export interface FinanceConfig {
 export interface FeeCell {
   amount: string | null
   marker: string | null
+  /** valor diferente da mensalidade marcado como quitado (conta como pago) */
+  settled: boolean
 }
 
 export interface FeeRow {
@@ -544,7 +546,8 @@ export interface AccessLogEntry {
 }
 
 // ---------- Área do jogador ----------
-export type MyMonthStatus = 'paid' | 'partial' | 'open' | 'late' | 'future' | 'none'
+/** out = "F" (fora): não jogou no mês, não é dívida */
+export type MyMonthStatus = 'paid' | 'partial' | 'out' | 'open' | 'late' | 'future' | 'none'
 
 export interface MyFinance {
   has_player: boolean
@@ -567,4 +570,24 @@ export interface PasswordRequest {
   phone: string | null
   requested_at: string
   link_sent_at: string | null
+}
+
+// ---------- Portal da transparência ----------
+export interface TransparencyExpense {
+  month: string
+  category: CashCategory
+  description: string | null
+  amount: string
+}
+
+export interface Transparency {
+  year: number
+  months: string[]
+  balance: string
+  year_income: string
+  year_expenses: string
+  summary: MonthSummary[]
+  expenses: TransparencyExpense[]
+  /** situação dos mensalistas ativos mês a mês (chave "YYYY-MM"), sem valores */
+  players: { name: string; months: Record<string, MyMonthStatus> }[]
 }

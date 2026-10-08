@@ -11,6 +11,7 @@ import { monthAbbr, money } from '@/lib/labels'
 const statusText: Record<MyMonthStatus, string> = {
   paid: 'pago',
   partial: 'parcial',
+  out: 'fora',
   open: 'em aberto',
   late: 'atrasado',
   future: '—',
@@ -87,7 +88,7 @@ function Months({ d }: { d: MyFinance }) {
               m.status === 'partial' && 'bg-accent/15',
               m.status === 'open' && 'bg-accent/10 ring-1 ring-inset ring-accent/60',
               m.status === 'late' && 'ring-2 ring-inset ring-danger/80',
-              (m.status === 'future' || m.status === 'none') && 'bg-soft/60 text-muted',
+              (m.status === 'future' || m.status === 'none' || m.status === 'out') && 'bg-soft/60 text-muted',
             )}
           >
             <span className="text-xs font-semibold uppercase">{monthAbbr[Number(m.month.slice(5, 7)) - 1]}</span>
@@ -99,7 +100,7 @@ function Months({ d }: { d: MyFinance }) {
               )}
             </span>
             <span className="sr-only">{statusText[m.status]}</span>
-            {m.marker && <span className="text-[11px] text-muted">{m.marker}</span>}
+            {m.marker && m.status !== 'out' && <span className="text-[11px] text-muted">{m.marker}</span>}
           </li>
         ))}
       </ul>

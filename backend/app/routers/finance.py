@@ -22,6 +22,7 @@ from app.schemas.finance import (
     FinanceConfig,
     FinanceOverview,
     ImportResult,
+    TransparencyOut,
 )
 from app.services.finance_import_service import FinanceImportService, read_workbook
 from app.services.finance_service import FinanceService, today_local
@@ -45,6 +46,13 @@ async def overview(admin: AdminUser, session: SessionDep, year: int | None = Que
 async def my_finance(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
     """Mensalidades do próprio jogador (qualquer usuário logado; só os dados dele)."""
     return await FinanceService(session).my_finance(user, year or today_local().year)
+
+
+@router.get("/transparency", response_model=TransparencyOut)
+async def transparency(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+    """Portal da transparência (qualquer usuário logado): saldo, resumo mensal, despesas e situação dos
+    mensalistas mês a mês, sem valores individuais nem contatos."""
+    return await FinanceService(session).transparency(_year(year))
 
 
 @router.get("/charge-message", response_model=ChargeMessageOut)

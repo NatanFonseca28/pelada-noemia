@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarCheck,
   CircleUserRound,
+  Landmark,
   Dices,
   Home,
   EyeOff,
@@ -55,6 +56,7 @@ const PELADA: NavItem[] = [
   { to: '/estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { to: '/jogadores', label: 'Jogadores', icon: Shirt },
   { to: '/minha-area', label: 'Minha área', icon: CircleUserRound },
+  { to: '/transparencia', label: 'Transparência', icon: Landmark },
 ]
 
 // Área de gestão (admin)
@@ -271,7 +273,7 @@ export function Layout() {
               aria-haspopup="dialog"
               className={cx(
                 'press flex min-h-[60px] w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium',
-                inGestao || pathname.startsWith('/jogadores') || pathname === '/minha-area' || pathname === '/conta' ? 'text-primary-ink' : 'text-muted',
+                inGestao || pathname.startsWith('/jogadores') || pathname === '/minha-area' || pathname === '/transparencia' || pathname === '/conta' ? 'text-primary-ink' : 'text-muted',
               )}
             >
               <span className="grid h-7 w-12 place-items-center rounded-full">

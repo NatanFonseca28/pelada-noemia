@@ -8,7 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
 from app.domain.charge_message import CHARGE_VARIABLES, DEFAULT_CHARGE_MESSAGE
-from app.domain.delinquency import amount_due, is_delinquent, months_owed, reference_months
+from app.domain.delinquency import (
+    OUT_MARKER,
+    FeeMark,
+    amount_due,
+    is_delinquent,
+    is_paid,
+    month_state,
+    months_owed,
+    reference_months,
+)
 from app.models.audit import AuditLog
 from app.models.enums import PlayerType
 from app.models.finance import CashEntry, CashKind, CollectionItem, FinanceCollection, MonthlyFee
@@ -33,6 +42,9 @@ from app.schemas.finance import (
     MonthSummary,
     MyFinanceOut,
     MyMonth,
+    TransparencyExpense,
+    TransparencyOut,
+    TransparencyPlayer,
 )
 from app.services import audit_service
 
@@ -93,7 +105,7 @@ class FinanceService:
 
         cells: dict[int, dict[str, FeeCellOut]] = defaultdict(dict)
         for f in fees:
-            cells[f.player_id][month_key(f.month)] = FeeCellOut(amount=f.amount, marker=f.marker)
+            cells[f.player_id][month_key(f.month)] = FeeCellOut(amount=f.amount, marker=f.marker, settled=f.settled)
 
         # Ordem: mensalistas, diaristas e isentos; em cada grupo, quem tem pagamento no ano primeiro, depois por nome
         first_paid = {pid: min(c) for pid, c in cells.items()}
@@ -145,20 +157,58 @@ class FinanceService:
             to_charge_count=len(await self.owing()),
         )
 
+    # ---------- Portal da transparência ----------
+    async def transparency(self, year: int) -> TransparencyOut:
+        """Resumo do caixa, despesas e situação dos mensalistas ativos (só estados, sem valores)."""
+        overview = await self.overview(year)
+        fee = overview.config.monthly_fee
+        now = month_key(today_local())
+        ref = {month_key(m) for m in reference_months(today_local())}
+        players = []
+        for row in overview.rows:
+            if row.type != PlayerType.MENSALISTA.value or not row.active:
+                continue
+            first = min(row.cells, default=None)  # antes do 1º lançamento ele não era do grupo
+            states = {}
+            for m in overview.months:
+                key = month_key(m)
+                c = row.cells.get(key)
+                state = month_state(FeeMark(c.amount, c.settled, c.marker) if c else None, fee)
+                if state == "empty":
+                    # como em "Minha área": os 2 meses de referência sempre contam (regra de cobrança)
+                    before_first = (first is None or key < first) and key not in ref
+                    state = "future" if key > now else "none" if before_first else "open" if key == now else "late"
+                states[key] = state
+            players.append(TransparencyPlayer(name=row.name, months=states))
+        expenses = [
+            TransparencyExpense(month=e.month, category=e.category, description=e.description, amount=e.amount)
+            for e in await self.list_entries(year) if e.kind == CashKind.SAIDA
+        ]
+        return TransparencyOut(
+            year=year,
+            months=overview.months,
+            balance=overview.balance,
+            year_income=overview.year_total,
+            year_expenses=sum((s.expenses for s in overview.summary), ZERO),
+            summary=overview.summary,
+            expenses=expenses,
+            players=sorted(players, key=lambda p: p.name.casefold()),
+        )
+
     # ---------- Inadimplência ----------
-    async def delinquency(self) -> dict[int, list[Decimal | None]]:
+    async def delinquency(self) -> dict[int, list[FeeMark | None]]:
         """Mensalistas ativos sem pagar o mês atual nem o anterior → {player_id: valores pagos nos 2 meses}."""
         fee = (await self.get_config()).monthly_fee
         return {pid: a for pid, a in (await self._reference_payments()).items() if is_delinquent(a, fee)}
 
-    async def owing(self) -> dict[int, list[Decimal | None]]:
+    async def owing(self) -> dict[int, list[FeeMark | None]]:
         """Mensalistas ativos com pelo menos um dos dois meses de referência em aberto (para cobrar)."""
         fee = (await self.get_config()).monthly_fee
         months = list(reference_months(today_local()))
         return {pid: a for pid, a in (await self._reference_payments()).items() if months_owed(months, a, fee)}
 
-    async def _reference_payments(self) -> dict[int, list[Decimal | None]]:
-        """{player_id: valores pagos no (mês anterior, mês atual)} de cada mensalista ativo."""
+    async def _reference_payments(self) -> dict[int, list[FeeMark | None]]:
+        """{player_id: células do (mês anterior, mês atual)} de cada mensalista ativo (None = vazio)."""
         months = reference_months(today_local())
         players = list(await self.session.scalars(
             select(Player.id).where(Player.type == PlayerType.MENSALISTA, Player.active.is_(True))
@@ -166,7 +216,7 @@ class FinanceService:
         if not players:
             return {}
         paid = {
-            (f.player_id, f.month): f.amount
+            (f.player_id, f.month): f.mark
             for f in await self.session.scalars(
                 select(MonthlyFee).where(MonthlyFee.player_id.in_(players), MonthlyFee.month.in_(months))
             )
@@ -234,10 +284,11 @@ class FinanceService:
 
         def status(month: date) -> str:
             f = fees.get(month)
-            amount = f.amount if f else None
-            if amount is not None and amount >= fee:
+            if is_paid(f.mark if f else None, fee):
                 return "paid"
-            if amount:
+            if f and f.mark.is_out:
+                return "out"
+            if f and f.amount:
                 return "partial"
             if month > today:
                 return "future"
@@ -249,8 +300,9 @@ class FinanceService:
         for n in range(1, 13):
             m = date(year, n, 1)
             f = fees.get(m)
-            months.append(MyMonth(month=m, amount=f.amount if f else None, marker=f.marker if f else None, status=status(m)))
-        amounts = [fees[m].amount if m in fees else None for m in ref]
+            months.append(MyMonth(month=m, amount=f.amount if f else None, marker=f.marker if f else None,
+                                  settled=f.settled if f else False, status=status(m)))
+        amounts = [fees[m].mark if m in fees else None for m in ref]
         due = months_owed(ref, amounts, fee) if mensalista else []
         current = await SettingsRepository(self.session).get_current()
         return MyFinanceOut(
@@ -300,8 +352,14 @@ class FinanceService:
             select(MonthlyFee).where(MonthlyFee.player_id == data.player_id, MonthlyFee.month == data.month)
         )
         before = {"amount": str(fee.amount) if fee and fee.amount is not None else None,
-                  "marker": fee.marker if fee else None}
+                  "marker": fee.marker if fee else None, "settled": fee.settled if fee else False}
         marker = (data.marker or "").strip() or None
+        if data.settled and not data.amount:
+            raise ValidationError("Informe o valor pago para marcar como quitado")
+        if FeeMark(marker=marker).is_out:
+            if data.amount is not None:
+                raise ValidationError('"F" (fora) não leva valor: limpe o valor ou a anotação')
+            marker = OUT_MARKER  # normaliza "f" → "F"
         if data.amount is None and marker is None:
             if fee:
                 await self.session.delete(fee)
@@ -310,12 +368,13 @@ class FinanceService:
             if fee is None:
                 fee = MonthlyFee(player_id=data.player_id, month=data.month)
                 self.session.add(fee)
-            fee.amount, fee.marker = data.amount, marker
-            result = FeeCellOut(amount=data.amount, marker=marker)
+            fee.amount, fee.marker, fee.settled = data.amount, marker, data.settled
+            result = FeeCellOut(amount=data.amount, marker=marker, settled=data.settled)
         await audit_service.record(
             self.session, user_id=actor.id, action="UPDATE", entity="monthly_fee",
             entity_id=f"{data.player_id}:{month_key(data.month)}",
-            before=before, after={"amount": str(data.amount) if data.amount is not None else None, "marker": marker},
+            before=before, after={"amount": str(data.amount) if data.amount is not None else None, "marker": marker,
+                                  "settled": data.settled},
         )
         await self.session.commit()
         return result

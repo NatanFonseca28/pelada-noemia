@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Numeric,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+from app.domain.delinquency import FeeMark
 from app.models.enums import pg_enum
 
 
@@ -24,8 +25,8 @@ class CashCategory(StrEnum):
 class MonthlyFee(TimestampMixin, Base):
     """Uma célula da grade de mensalidades: jogador × mês.
 
-    `amount` é o valor pago (pode ser parcial); `marker` guarda anotações textuais
-    da planilha (ex.: "F") quando não há valor.
+    `amount` é o valor pago (pode ser parcial); `settled` marca um valor diferente da mensalidade
+    como quitado (conta como pago); `marker` guarda anotações textuais, como "F" (fora: não é dívida).
     """
 
     __tablename__ = "monthly_fees"
@@ -36,6 +37,11 @@ class MonthlyFee(TimestampMixin, Base):
     month: Mapped[date] = mapped_column(Date, index=True)  # sempre dia 1
     amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     marker: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+    @property
+    def mark(self) -> FeeMark:
+        return FeeMark(self.amount, self.settled, self.marker)
 
 
 class CashEntry(TimestampMixin, Base):

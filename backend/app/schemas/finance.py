@@ -29,6 +29,8 @@ class FeeCellIn(BaseModel):
     month: date
     amount: Decimal | None = Field(default=None, ge=0, le=10000)
     marker: str | None = Field(default=None, max_length=20)
+    # Valor diferente da mensalidade que conta como pago (ex.: desconto combinado)
+    settled: bool = False
 
     @field_validator("amount")
     @classmethod
@@ -44,6 +46,7 @@ class FeeCellIn(BaseModel):
 class FeeCellOut(BaseModel):
     amount: Decimal | None
     marker: str | None
+    settled: bool = False
 
 
 class FeeRow(BaseModel):
@@ -188,7 +191,9 @@ class MyMonth(BaseModel):
     month: date
     amount: Decimal | None
     marker: str | None
-    # paid | partial | open (mês atual em aberto) | late (atrasado) | future | none (não se aplica)
+    settled: bool = False
+    # paid | partial | out (F: fora, não é dívida) | open (mês atual em aberto) | late (atrasado)
+    # | future | none (não se aplica)
     status: str
 
 
@@ -205,3 +210,30 @@ class MyFinanceOut(BaseModel):
     months_due: list[date] = []
     amount_due: Decimal = Decimal("0.00")
     pix_key: str | None = None
+
+
+class TransparencyExpense(BaseModel):
+    month: date
+    category: CashCategory
+    description: str | None
+    amount: Decimal
+
+
+class TransparencyPlayer(BaseModel):
+    """Situação do mensalista mês a mês, sem valores: paid | out | partial | open | late | future | none."""
+
+    name: str
+    months: dict[str, str]  # chave: "YYYY-MM"
+
+
+class TransparencyOut(BaseModel):
+    """Portal da transparência: visível a qualquer usuário logado (sem telefones nem valores por jogador)."""
+
+    year: int
+    months: list[date]
+    balance: Decimal
+    year_income: Decimal
+    year_expenses: Decimal
+    summary: list[MonthSummary]
+    expenses: list[TransparencyExpense]
+    players: list[TransparencyPlayer]

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, json } from './client'
-import type { CashEntry, ChargeMessage, MyFinance, Collection, Delinquent, FeeCell, FinanceConfig, FinanceOverview, ImportResult } from './types'
+import type { CashEntry, ChargeMessage, MyFinance, Collection, Delinquent, FeeCell, FinanceConfig, FinanceOverview, ImportResult, Transparency } from './types'
 
 const invalidateFinance = (qc: ReturnType<typeof useQueryClient>) => qc.invalidateQueries({ queryKey: ['finance'] })
 
@@ -19,6 +19,11 @@ export function useDelinquents(enabled = true) {
 /** Mensalidades do próprio jogador (qualquer usuário logado). */
 export function useMyFinance(year: number) {
   return useQuery({ queryKey: ['finance', 'me', year], queryFn: () => api<MyFinance>(`/finance/me?year=${year}`) })
+}
+
+/** Portal da transparência (qualquer usuário logado): caixa, despesas e situação dos mensalistas. */
+export function useTransparency(year: number) {
+  return useQuery({ queryKey: ['finance', 'transparency', year], queryFn: () => api<Transparency>(`/finance/transparency?year=${year}`) })
 }
 
 /** "Para cobrar": quem deve os 2 últimos meses ou só 1 deles. */
@@ -59,7 +64,7 @@ export function useRegisterCharge() {
 export function useSetFee() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { player_id: number; month: string; amount: string | null; marker: string | null }) =>
+    mutationFn: (data: { player_id: number; month: string; amount: string | null; marker: string | null; settled?: boolean }) =>
       api<FeeCell | null>('/finance/fees', { method: 'PUT', body: json(data) }),
     onSuccess: () => invalidateFinance(qc),
   })

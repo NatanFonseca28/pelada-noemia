@@ -60,10 +60,11 @@ function FeeCellEditor({ cell, monthlyFee, onClose, onSaved }: { cell: EditingCe
   const current = cell.row.cells[monthKey(cell.month)]
   const [amount, setAmount] = useState(current?.amount ?? '')
   const [marker, setMarker] = useState(current?.marker ?? '')
+  const [settled, setSettled] = useState(current?.settled ?? false)
   const [error, setError] = useState<string | null>(null)
   const setFee = useSetFee()
 
-  async function save(next: { amount: string | null; marker: string | null }) {
+  async function save(next: { amount: string | null; marker: string | null; settled?: boolean }) {
     setError(null)
     try {
       await setFee.mutateAsync({ player_id: cell.row.player_id, month: cell.month, ...next })
@@ -76,7 +77,8 @@ function FeeCellEditor({ cell, monthlyFee, onClose, onSaved }: { cell: EditingCe
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
-    save({ amount: amount === '' ? null : String(amount).replace(',', '.'), marker: marker.trim() || null })
+    const value = amount === '' ? null : String(amount).replace(',', '.')
+    save({ amount: value, marker: marker.trim() || null, settled: !!value && settled })
   }
 
   return (
@@ -85,22 +87,33 @@ function FeeCellEditor({ cell, monthlyFee, onClose, onSaved }: { cell: EditingCe
         <span className="font-medium text-ink">{cell.row.name}</span> · {monthLong(cell.month)}
       </p>
       {error && <Alert>{error}</Alert>}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Button type="button" size="lg" onClick={() => save({ amount: monthlyFee, marker: null })} loading={setFee.isPending}>
           Pagou {money(monthlyFee)}
+        </Button>
+        <Button type="button" size="lg" variant="secondary" onClick={() => save({ amount: null, marker: 'F' })}>
+          Fora (F)
         </Button>
         <Button type="button" size="lg" variant="secondary" onClick={() => save({ amount: null, marker: null })}>
           Limpar
         </Button>
       </div>
+      <p className="text-xs text-muted">“F” = fora no mês: não é inadimplência nem entra na cobrança. Vazio continua em aberto.</p>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Outro valor (R$)">
           <input className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Ex.: 35" />
         </Field>
-        <Field label="Anotação" hint='Ex.: "F"'>
+        <Field label="Anotação">
           <input className="input" maxLength={20} value={marker} onChange={(e) => setMarker(e.target.value)} />
         </Field>
       </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={settled} onChange={(e) => setSettled(e.target.checked)} />
+        <span>
+          Quitado (conta como pago)
+          <span className="block text-xs text-muted">Para um valor diferente da mensalidade, como um desconto combinado. Sem marcar, fica como parcial.</span>
+        </span>
+      </label>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit" loading={setFee.isPending}>Salvar</Button>
@@ -118,12 +131,13 @@ const GROUP_STYLE: Record<PlayerType, { row: string; text: string; border: strin
   ISENTO: { row: 'bg-muted/10', text: 'text-muted', border: 'border-l-muted', title: 'Isentos', note: 'goleiros fixos: não pagam' },
 }
 
-type CellState = 'paid' | 'partial' | 'marker' | 'open' | 'late' | 'future' | 'none'
+type CellState = 'paid' | 'partial' | 'out' | 'marker' | 'open' | 'late' | 'future' | 'none'
 
 function cellState(row: FeeRow, month: string, nowKey: string, fee: number): CellState {
   const c = row.cells[monthKey(month)]
   const amount = c?.amount ? Number(c.amount) : 0
-  if (amount >= fee && amount > 0) return 'paid'
+  if (amount > 0 && (amount >= fee || c?.settled)) return 'paid'
+  if (c?.marker?.trim().toUpperCase() === 'F') return 'out'
   if (amount > 0) return 'partial'
   if (c?.marker) return 'marker'
   const key = monthKey(month)
@@ -138,6 +152,7 @@ function cellState(row: FeeRow, month: string, nowKey: string, fee: number): Cel
 const stateText: Record<CellState, string> = {
   paid: 'pago',
   partial: 'pago parcialmente',
+  out: 'fora (não cobra)',
   marker: 'anotação',
   open: 'em aberto',
   late: 'atrasado',
@@ -157,6 +172,7 @@ function FeeCell({ row, month, fee, nowKey, pop, onClick }: { row: FeeRow; month
         pop && 'anim-cell-pop',
         state === 'paid' && 'bg-ok text-primary-on',
         state === 'partial' && 'bg-accent/30 text-ink',
+        state === 'out' && 'border border-line bg-soft/60 text-muted',
         state === 'marker' && 'bg-soft text-ink',
         state === 'open' && 'bg-accent/20 text-ink ring-1 ring-inset ring-accent/60',
         state === 'late' && 'border-2 border-danger/80 text-danger-ink',
@@ -172,6 +188,8 @@ function FeeCell({ row, month, fee, nowKey, pop, onClick }: { row: FeeRow; month
         </>
       ) : state === 'partial' ? (
         amount.toLocaleString('pt-BR')
+      ) : state === 'out' ? (
+        'F'
       ) : state === 'marker' ? (
         c?.marker
       ) : state === 'late' ? (
@@ -216,6 +234,7 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
           <li className="flex items-center gap-1"><span className="h-4 w-4 rounded-full bg-accent/30" /> parcial</li>
           <li className="flex items-center gap-1"><span className="h-4 w-4 rounded-full bg-accent/20 ring-1 ring-inset ring-accent/60" /> em aberto</li>
           <li className="flex items-center gap-1"><span className="h-4 w-4 rounded-full border-2 border-danger/80" /> atrasado</li>
+          <li className="flex items-center gap-1"><span className="grid h-4 w-4 place-items-center rounded-full border border-line bg-soft/60 text-[9px] font-semibold text-muted">F</span> fora (não cobra)</li>
           <li className="flex items-center gap-1"><span className="h-4 w-4 rounded-full bg-soft" /> anotação</li>
         </ul>
       </div>

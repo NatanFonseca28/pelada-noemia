@@ -70,7 +70,8 @@ class DashboardService:
         paid_month = await self.session.scalar(
             select(func.count()).select_from(Player)
             .where(Player.type == PlayerType.MENSALISTA, Player.active.is_(True),
-                   Player.id.in_(select(fin_fee.player_id).where(fin_fee.month == month, fin_fee.amount >= fee)))
+                   Player.id.in_(select(fin_fee.player_id).where(fin_fee.month == month,
+                                                                      (fin_fee.amount >= fee) | fin_fee.settled)))
         ) or 0
         collections_open = await self.session.scalar(
             select(func.coalesce(func.sum(CollectionItem.amount), 0)).where(CollectionItem.paid.is_(False))
