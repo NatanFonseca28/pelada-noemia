@@ -311,7 +311,7 @@ function TournamentView({ t }: { t: Tournament }) {
       )}
       {err && <div className="mb-4"><Alert>{errorText(err)}</Alert></div>}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section aria-labelledby="jogos">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 id="jogos" className="font-display text-2xl font-bold">Jogos</h2>
