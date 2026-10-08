@@ -3,7 +3,7 @@ import { cx } from './cx'
 
 export interface StandingsRow {
   position: number
-  team: { id: number; name: string; color?: string | null }
+  team: { id: number; name: string; color?: string | null; crest_url?: string | null }
   played: number
   wins: number
   draws: number
@@ -54,7 +54,7 @@ export function StandingsTable({ rows, qualify = 0, caption }: { rows: Standings
                   <span className="flex items-center gap-2">
                     <span className={cx('h-8 w-1 shrink-0', advances ? 'bg-primary' : 'bg-transparent')} aria-hidden />
                     <span className="tabular w-5 text-right font-display text-lg font-bold text-muted">{r.position}</span>
-                    <TeamShield name={r.team.name} color={r.team.color} size={22} />
+                    <TeamShield name={r.team.name} color={r.team.color} size={22} crestUrl={r.team.crest_url} />
                     <span className="min-w-0">
                       <span className="block truncate">{r.team.name}</span>
                       {r.tiebreak_note && <span className="block text-[11px] font-normal text-muted">desempate: {r.tiebreak_note}</span>}

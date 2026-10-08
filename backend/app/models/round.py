@@ -103,6 +103,13 @@ class Team(Base):
     name: Mapped[str] = mapped_column(String(40))
     color: Mapped[str] = mapped_column(String(9))
     display_order: Mapped[int] = mapped_column(Integer)
+    # Times com nome de clube real (catálogo do football-data.org): sigla e escudo em media_files
+    abbr: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    crest_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    @property
+    def crest_url(self) -> str | None:
+        return f"/api/media/{self.crest_path}" if self.crest_path else None
 
     players: Mapped[list["TeamPlayer"]] = relationship(
         back_populates="team", cascade="all, delete-orphan", lazy="selectin", order_by="TeamPlayer.id"

@@ -35,6 +35,7 @@ from app.schemas.round import (
 )
 from app.services import audit_service
 from app.services.callroll_service import CallRollService
+from app.services.team_catalog_service import TeamCatalogService
 
 EDITABLE = {RoundStatus.ABERTA, RoundStatus.FECHADA}
 
@@ -122,6 +123,8 @@ class RoundService:
                     id=t.id,
                     name=t.name,
                     color=t.color,
+                    abbr=t.abbr,
+                    crest_url=t.crest_url,
                     players=[
                         TeamPlayerOut(
                             player_id=tp.player_id,
@@ -174,6 +177,7 @@ class RoundService:
                 substitutions=draw.result["substitutions"],
                 alternatives=draw.result["alternatives"],
                 allow_short_team=draw.input_snapshot["config"].get("allow_short_team", False),
+                competition=draw.input_snapshot.get("competition"),
                 created_at=draw.created_at,
             ) if draw else None,
             teams=team_out,
@@ -309,7 +313,7 @@ class RoundService:
 
     # ---------------------------------------------------------- sorteio
     async def draw(self, round_id: int, num_teams: int | None, seed: int | None, actor: User,
-                   allow_short_team: bool = False) -> None:
+                   allow_short_team: bool = False, competition: str | None = None) -> None:
         rnd = await self._round(round_id)
         if rnd.status not in EDITABLE:
             raise ValidationError("Times travados: destrave para sortear novamente")
@@ -339,8 +343,9 @@ class RoundService:
             allow_short_team=allow_short_team,
         )
         seed = seed or new_seed()
+        pool = await TeamCatalogService(self.session).pool(competition) if competition else None
         try:
-            result = run_draw(players, config, seed, num_teams)
+            result = run_draw(players, config, seed, num_teams, team_pool=pool)
         except DrawError as exc:
             raise ValidationError(str(exc)) from exc
 
@@ -356,6 +361,7 @@ class RoundService:
                 "players": [vars(p) for p in sorted(players, key=lambda p: p.id)],
                 "config": vars(config),
                 "num_teams": num_teams,
+                "competition": competition,
             },
             result=data,
             is_current=True,
@@ -364,7 +370,8 @@ class RoundService:
         self.session.add(draw)
         await self.session.flush()
         for team in result.teams:
-            row = Team(round_id=rnd.id, draw_id=draw.id, name=team.name, color=team.color, display_order=team.index)
+            row = Team(round_id=rnd.id, draw_id=draw.id, name=team.name, color=team.color, display_order=team.index,
+                       abbr=team.abbr, crest_path=team.crest_path)
             row.players = [
                 TeamPlayer(round_id=rnd.id, player_id=s.player_id, assigned_position=s.position,
                            role=TeamRole(s.role.value), filled_by=s.filled_by.value, moved_manually=False)

@@ -40,6 +40,8 @@ class TeamRef(BaseModel):
     id: int
     name: str
     color: str
+    abbr: str | None = None
+    crest_url: str | None = None
 
 
 class StandingRow(BaseModel):

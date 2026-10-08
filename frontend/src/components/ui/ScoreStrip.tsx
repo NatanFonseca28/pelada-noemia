@@ -6,6 +6,8 @@ import { TeamShield } from './TeamShield'
 export interface StripTeam {
   name: string
   color?: string | null
+  abbr?: string | null
+  crest_url?: string | null
 }
 
 type Size = 'sm' | 'md' | 'lg' | 'xl'
@@ -57,14 +59,14 @@ export function ScoreStrip({
       <span className={cx('self-stretch', size === 'sm' ? 'w-1' : 'w-1.5')} style={{ background: team ? teamColor(team.name, team.color) : 'rgb(var(--line))' }} aria-hidden />
       {team ? (
         <span className={s.shieldCls}>
-          <TeamShield name={team.name} color={team.color} size={s.shield} />
+          <TeamShield name={team.name} color={team.color} size={s.shield} crestUrl={team.crest_url} />
         </span>
       ) : null}
       <span className={cx('min-w-0 truncate font-display font-bold uppercase tracking-wide', team ? s.abbr : 'text-sm font-medium normal-case italic text-muted')}>
         {team ? (
           <>
             {/* sigla no celular; nome completo a partir de 640px */}
-            <span aria-hidden className={s.fullName ? 'sm:hidden' : undefined}>{teamAbbr(team.name)}</span>
+            <span aria-hidden className={s.fullName ? 'sm:hidden' : undefined}>{teamAbbr(team.name, team.abbr)}</span>
             {s.fullName && <span aria-hidden className="hidden sm:inline">{team.name}</span>}
             <span className="sr-only">Time {team.name}</span>
           </>

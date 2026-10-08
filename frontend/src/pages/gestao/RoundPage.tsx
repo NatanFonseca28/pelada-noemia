@@ -8,6 +8,7 @@ import type { Player, RoundDetail, TeamItem, TeamPlayerItem } from '@/api/types'
 import { DeleteRoundDialog } from '@/components/rounds/DeleteRoundDialog'
 import { ShareButton } from '@/components/ShareButton'
 import { teamsText } from '@/lib/share'
+import { useCompetitions } from '@/api/catalog'
 import { BalanceSummary, DRAG_MIME, SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
 import { CreateTournamentPanel } from './CreateTournamentPanel'
 import { Alert, Badge, Button, Card, ICON_STROKE, Modal, PageHeader, PlayerName, Spinner, TypeLegend, cx } from '@/components/ui'
@@ -173,6 +174,11 @@ function DrawPanel({ round }: { round: RoundDetail }) {
   const locked = round.status === 'TIMES_TRAVADOS'
   const d = round.draw
   const [allowShort, setAllowShort] = useState(d?.allow_short_team ?? false)
+  const competitions = useCompetitions(editable)
+  // lembra o último campeonato usado; 1º sorteio: Brasileirão, se o catálogo já tiver clubes
+  const [competition, setCompetition] = useState<string>(d ? d.competition ?? '' : 'BSA')
+  const available = (competitions.data ?? []).filter((c) => c.clubs > 0)
+  const chosen = available.some((c) => c.code === competition) ? competition : ''
 
   const drop = (team: TeamItem) => (playerId: number) => {
     if (!team.players.some((p) => p.player_id === playerId)) move.mutate({ player_id: playerId, team_id: team.id })
@@ -185,7 +191,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
 
   const doDraw = (num_teams?: number) => {
     if (round.teams.length && !confirm('Refazer o sorteio? Os ajustes manuais serão perdidos.')) return
-    draw.mutate({ ...(num_teams ? { num_teams } : {}), allow_short_team: allowShort })
+    draw.mutate({ ...(num_teams ? { num_teams } : {}), allow_short_team: allowShort, competition: chosen || null })
   }
 
   const error = draw.error ?? move.error ?? status.error
@@ -215,6 +221,20 @@ function DrawPanel({ round }: { round: RoundDetail }) {
         </div>
       </div>
 
+      {editable && (
+        <label className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium">Times do sorteio</span>
+          <select className="input w-auto" value={chosen} onChange={(e) => setCompetition(e.target.value)} aria-label="Campeonato dos nomes dos times">
+            <option value="">Cores (Verde, Azul, Vermelho…)</option>
+            {available.map((c) => (
+              <option key={c.code} value={c.code}>{c.name}{c.season ? ` ${c.season}` : ''} · {c.clubs} times</option>
+            ))}
+          </select>
+          {competitions.data && available.length === 0 && (
+            <span className="text-xs text-muted">Nenhum campeonato carregado: o superadmin atualiza em Configurações.</span>
+          )}
+        </label>
+      )}
       {editable && (
         <label className="mb-3 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={allowShort} onChange={(e) => setAllowShort(e.target.checked)} />

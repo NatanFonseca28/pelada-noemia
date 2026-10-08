@@ -238,6 +238,9 @@ export interface TeamItem {
   id: number
   name: string
   color: string
+  /** sigla oficial e escudo (times com nome de clube) */
+  abbr?: string | null
+  crest_url?: string | null
   players: TeamPlayerItem[]
   line_count: number
   has_fixed_gk: boolean
@@ -277,6 +280,8 @@ export interface DrawInfo {
   alternatives: DrawAlternative[]
   /** sorteio feito com a opção "time com um a menos" */
   allow_short_team: boolean
+  /** campeonato usado nos nomes dos times (null = cores) */
+  competition?: string | null
   created_at: string
 }
 
@@ -342,6 +347,16 @@ export interface TeamRef {
   id: number
   name: string
   color: string
+  abbr?: string | null
+  crest_url?: string | null
+}
+
+export interface CatalogCompetition {
+  code: string
+  name: string
+  season: number | null
+  clubs: number
+  updated_at: string | null
 }
 
 export interface StandingRow {

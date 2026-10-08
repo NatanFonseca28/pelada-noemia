@@ -360,7 +360,8 @@ class TournamentService:
     async def detail(self, tournament_id: int) -> TournamentOut:
         t = await self._tournament(tournament_id)
         rnd = await self._round(t.round_id)
-        teams = {tm.id: TeamRef(id=tm.id, name=tm.name, color=tm.color) for tm in await self._teams(t.round_id)}
+        teams = {tm.id: TeamRef(id=tm.id, name=tm.name, color=tm.color, abbr=tm.abbr, crest_url=tm.crest_url)
+                 for tm in await self._teams(t.round_id)}
         matches = await self._matches(t.id)
         groups = list(await self.session.scalars(
             select(TournamentGroup).where(TournamentGroup.tournament_id == t.id).order_by(TournamentGroup.name)

@@ -46,7 +46,8 @@ const ABBR: Record<string, string> = {
 }
 
 /** Sigla de 3 letras para tarjas de placar (Verde → VRD, Vermelho → VRM). */
-export function teamAbbr(name: string): string {
+export function teamAbbr(name: string, abbr?: string | null): string {
+  if (abbr) return abbr
   if (ABBR[name]) return ABBR[name]
   const clean = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z]/g, '')
   const consonants = clean[0] + clean.slice(1).replace(/[AEIOU]/g, '')

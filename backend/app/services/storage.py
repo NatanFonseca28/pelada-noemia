@@ -27,8 +27,8 @@ async def read_limited(file: UploadFile, max_bytes: int, label: str) -> bytes:
     return b"".join(chunks)
 
 
-def sanitize_image(content: bytes) -> bytes:
-    """Valida e regrava a imagem como WEBP sem metadados, com no máximo MAX_SIDE px de lado."""
+def sanitize_image(content: bytes, max_side: int = MAX_SIDE) -> bytes:
+    """Valida e regrava a imagem como WEBP sem metadados, com no máximo `max_side` px de lado."""
     try:
         with Image.open(BytesIO(content)) as probe:
             fmt = probe.format
@@ -38,7 +38,7 @@ def sanitize_image(content: bytes) -> bytes:
         with Image.open(BytesIO(content)) as img:  # verify() invalida o objeto: reabre para decodificar
             img = ImageOps.exif_transpose(img)
             img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "P") else "RGB")
-            img.thumbnail((MAX_SIDE, MAX_SIDE))
+            img.thumbnail((max_side, max_side))
             out = BytesIO()
             img.save(out, format="WEBP", quality=85, method=4)  # sem exif= → metadados descartados
             return out.getvalue()

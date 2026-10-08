@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '@/api/client'
 import { useSaveSettings, useSettings } from '@/api/queries'
+import { useCompetitions, useSyncCatalog } from '@/api/catalog'
+import { usePageAccess } from '@/lib/pages'
 import type { KnockoutTieRule, RedCardRule, Settings, Tiebreaker, TopScorerTiebreak } from '@/api/types'
 import { Alert, Button, Card, Field, PageHeader, Spinner } from '@/components/ui'
 import { knockoutTieLabel, redCardLabel, tiebreakerLabel, topScorerLabel, weekdayLabel } from '@/lib/labels'
@@ -20,9 +22,62 @@ function NumberInput({ value, onChange, min, max, step }: { value: number | stri
   return <input className="input" type="number" inputMode="decimal" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} required />
 }
 
+/** Superadmin: catálogo de clubes (football-data.org) usado nos nomes dos times do sorteio. */
+function CatalogSection() {
+  const list = useCompetitions()
+  const sync = useSyncCatalog()
+  const [started, setStarted] = useState(false)
+  // durante a atualização em segundo plano, recarrega a lista a cada 10 s
+  useEffect(() => {
+    if (!started) return
+    const id = setInterval(() => list.refetch(), 10_000)
+    const stop = setTimeout(() => setStarted(false), 150_000)
+    return () => { clearInterval(id); clearTimeout(stop) }
+  }, [started, list])
+  return (
+    <Card className="p-4">
+      <h2 className="mb-1 font-display text-xl font-bold">Campeonatos do sorteio</h2>
+      <p className="mb-3 text-sm text-muted">
+        Clubes e escudos do football-data.org, usados para dar nomes de times reais no sorteio. Atualize uma vez por temporada.
+      </p>
+      {sync.error && <div className="mb-3"><Alert>{sync.error instanceof ApiError ? sync.error.message : 'Erro ao atualizar'}</Alert></div>}
+      {started && <div className="mb-3"><Alert kind="info">Atualizando em segundo plano (cerca de 1 minuto e meio). A lista abaixo se atualiza sozinha.</Alert></div>}
+      <div className="mb-3 overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-xs uppercase text-muted">
+              <th className="py-1.5 font-medium">Campeonato</th>
+              <th className="py-1.5 font-medium">Temporada</th>
+              <th className="py-1.5 text-right font-medium">Times</th>
+              <th className="py-1.5 text-right font-medium">Atualizado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(list.data ?? []).map((c) => (
+              <tr key={c.code} className="border-b border-line/60 last:border-0">
+                <td className="py-1.5">{c.name}</td>
+                <td className="py-1.5 tabular">{c.season ?? '—'}</td>
+                <td className="py-1.5 text-right tabular">{c.clubs}</td>
+                <td className="py-1.5 text-right text-xs text-muted">{c.updated_at ? new Date(c.updated_at).toLocaleString('pt-BR') : '—'}</td>
+              </tr>
+            ))}
+            {list.data?.length === 0 && (
+              <tr><td colSpan={4} className="py-3 text-muted">Nenhum campeonato carregado ainda.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <Button type="button" loading={sync.isPending} disabled={started} onClick={() => sync.mutate(undefined, { onSuccess: () => setStarted(true) })}>
+        Atualizar do football-data.org
+      </Button>
+    </Card>
+  )
+}
+
 export function SettingsPage() {
   const { data, isLoading } = useSettings()
   const save = useSaveSettings()
+  const { superadmin } = usePageAccess()
   const [form, setForm] = useState<Settings | null>(null)
   const [msg, setMsg] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
 
@@ -149,6 +204,7 @@ export function SettingsPage() {
           Dois amarelos na partida viram vermelho
         </label>
       </Section>
+      {superadmin && <CatalogSection />}
     </form>
   )
 }

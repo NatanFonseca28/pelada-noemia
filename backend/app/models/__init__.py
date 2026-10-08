@@ -2,6 +2,7 @@
 
 from app.models.access_log import AccessLog
 from app.models.audit import AuditLog
+from app.models.catalog import CatalogClub, CatalogCompetition
 from app.models.match_event import EventType, MatchEvent
 from app.models.media import MediaFile
 from app.models.finance import CashEntry, CollectionItem, FinanceCollection, MonthlyFee
@@ -16,6 +17,8 @@ __all__ = [
     "AccessLog",
     "Attendance",
     "AuditLog",
+    "CatalogClub",
+    "CatalogCompetition",
     "CashEntry",
     "CollectionItem",
     "Draw",

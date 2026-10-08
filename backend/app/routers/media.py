@@ -13,8 +13,8 @@ async def media(path: str, session: SessionDep) -> Response:
     file = await session.get(MediaFile, path)
     if file is None:
         raise NotFoundError("Arquivo não encontrado")
-    return Response(
-        file.content,
-        media_type=file.content_type,
-        headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"},
-    )
+    headers = {"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"}
+    if file.content_type == "image/svg+xml":
+        # escudo SVG de terceiros: aberto direto no navegador, não executa nada
+        headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
+    return Response(file.content, media_type=file.content_type, headers=headers)

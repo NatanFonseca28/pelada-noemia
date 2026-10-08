@@ -64,6 +64,8 @@ class Settings(BaseSettings):
 
     # Sentry (avisos de erro). Vazio = desligado.
     sentry_dsn: str | None = None
+    # football-data.org: catálogo de clubes para os nomes dos times do sorteio (nunca vai ao front)
+    football_data_token: str | None = None
 
     admin_email: str = "admin@pelada.app"
     admin_password: str = "admin123-dev-only"

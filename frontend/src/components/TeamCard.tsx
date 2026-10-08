@@ -3,7 +3,7 @@ import { Hand, Shield } from 'lucide-react'
 import type { TeamItem, TeamPlayerItem } from '@/api/types'
 import { slotPositionShort } from '@/lib/labels'
 import { teamColor, teamInk } from '@/lib/teamColors'
-import { Badge, ICON_STROKE, PlayerName, cx } from './ui'
+import { Badge, ICON_STROKE, PlayerName, TeamShield, cx } from './ui'
 
 export const DRAG_MIME = 'application/x-pelada-player'
 
@@ -89,7 +89,14 @@ export function TeamCard({
     >
       <div className="flex items-center justify-between px-3 py-2" style={{ background: color, color: teamInk(color) }}>
         {/* 19px negrito = texto grande (AA 3:1) para a tinta #0e1a12 sobre as cores de time */}
-        <span className="font-display text-[19px] font-bold leading-tight">Time {team.name}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {team.crest_url && (
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/90 p-0.5">
+              <TeamShield name={team.name} crestUrl={team.crest_url} size={24} />
+            </span>
+          )}
+          <span className="truncate font-display text-[19px] font-bold leading-tight">Time {team.name}</span>
+        </span>
         {/* texto pequeno vai num chip claro para manter AA 4.5:1 */}
         <span className="rounded-full bg-surface/90 px-2 py-0.5 text-xs font-semibold text-ink">{team.line_count} na linha</span>
       </div>

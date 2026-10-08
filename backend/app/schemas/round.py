@@ -46,6 +46,8 @@ class TeamOut(BaseModel):
     id: int
     name: str
     color: str
+    abbr: str | None = None  # sigla oficial (times com nome de clube)
+    crest_url: str | None = None  # escudo do clube, servido pelo próprio app
     players: list[TeamPlayerOut]
     line_count: int
     has_fixed_gk: bool
@@ -68,6 +70,7 @@ class DrawInfo(BaseModel):
     substitutions: list[dict]
     alternatives: list[dict]
     allow_short_team: bool = False
+    competition: str | None = None  # campeonato usado nos nomes (None = cores)
     created_at: datetime
 
 
@@ -128,6 +131,8 @@ class DrawRequest(BaseModel):
     seed: int | None = Field(default=None, ge=1, le=2**31 - 1)
     # Permite um time com um a menos na linha, completado por alguém do time de fora
     allow_short_team: bool = False
+    # Código do campeonato (football-data.org) para os nomes dos times; None = cores
+    competition: str | None = Field(default=None, max_length=10)
 
 
 class MoveRequest(BaseModel):

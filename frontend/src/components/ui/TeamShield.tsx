@@ -8,8 +8,21 @@ const SHAPES = [
   'M20 2 L38 22 L20 42 L2 22 Z',
 ]
 
-/** Escudo gerado do time: forma estável pelo nome + inicial. Nunca usa marcas reais. */
-export function TeamShield({ name, color, size = 32, title }: { name: string; color?: string | null; size?: number; title?: string }) {
+/** Escudo do time: o do clube (catálogo do football-data.org, servido pelo app) ou um gerado pela cor + inicial. */
+export function TeamShield({ name, color, size = 32, title, crestUrl }: { name: string; color?: string | null; size?: number; title?: string; crestUrl?: string | null }) {
+  if (crestUrl) {
+    return (
+      <img
+        src={crestUrl}
+        alt={title ?? `Escudo do ${name}`}
+        width={size}
+        height={size * 1.1}
+        loading="lazy"
+        className="shrink-0 object-contain"
+        style={{ width: size, height: size * 1.1 }}
+      />
+    )
+  }
   const fill = teamColor(name, color)
   const ink = teamInk(fill)
   const shape = SHAPES[shieldShape(name)]

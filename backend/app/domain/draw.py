@@ -49,6 +49,16 @@ TEAM_NAMES = [
 ]
 
 
+@dataclass(frozen=True)
+class TeamIdentity:
+    """Nome de time vindo do catálogo de clubes (campeonato escolhido no sorteio)."""
+
+    name: str
+    color: str
+    abbr: str | None = None
+    crest_path: str | None = None
+
+
 class DrawError(ValueError):
     """Erro de regra do sorteio (mensagem pronta para exibir ao admin)."""
 
@@ -136,6 +146,8 @@ class Team:
     name: str
     color: str
     players: list[TeamSlot] = field(default_factory=list)
+    abbr: str | None = None  # sigla oficial do clube (catálogo)
+    crest_path: str | None = None  # escudo em media_files (catálogo)
 
     @property
     def has_fixed_gk(self) -> bool:
@@ -346,6 +358,7 @@ def run_draw(
     config: DrawConfig,
     seed: int,
     num_teams: int | None = None,
+    team_pool: list[TeamIdentity] | None = None,
 ) -> DrawResult:
     if len({p.id for p in players}) != len(players):
         raise DrawError("Jogador repetido na lista de confirmados")
@@ -386,7 +399,14 @@ def run_draw(
             f"{len(goalkeepers)} goleiro(s) fixo(s)."
         )
 
-    teams = [Team(i, *TEAM_NAMES[i % len(TEAM_NAMES)]) for i in range(n)]
+    if team_pool:
+        if len(team_pool) < n:
+            raise DrawError(f"O campeonato escolhido tem só {len(team_pool)} clubes para {n} times.")
+        # Gerador separado: escolher os clubes não altera o sorteio dos jogadores (mesma seed, mesmos times)
+        clubs = random.Random(f"{seed}-clubes").sample(sorted(team_pool, key=lambda c: c.name), n)
+        teams = [Team(i, c.name, c.color, abbr=c.abbr, crest_path=c.crest_path) for i, c in enumerate(clubs)]
+    else:
+        teams = [Team(i, *TEAM_NAMES[i % len(TEAM_NAMES)]) for i in range(n)]
     quotas = _quotas(sizes, config)
     substitutions: list[Substitution] = []
     warnings: list[str] = []

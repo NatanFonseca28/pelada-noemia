@@ -300,7 +300,7 @@ function TournamentView({ t }: { t: Tournament }) {
         <Card className="anim-champion relative mb-5 overflow-hidden p-5 ring-1 ring-inset ring-accent/50">
           <Confetti />
           <div className="flex items-center gap-4">
-            <TeamShield name={t.champion.name} color={t.champion.color} size={56} />
+            <TeamShield name={t.champion.name} color={t.champion.color} size={56} crestUrl={t.champion.crest_url} />
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm font-medium text-accent-ink"><Trophy size={16} strokeWidth={ICON_STROKE} aria-hidden /> Campeão</p>
               <p className="font-display text-3xl font-bold leading-tight">Time {t.champion.name}</p>

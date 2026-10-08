@@ -50,7 +50,7 @@ export function useRoundActions(roundId: number) {
     clearAttendance: useRoundAction(roundId, (playerId: number) =>
       api<RoundDetail>(`${base}/attendances/${playerId}`, { method: 'DELETE' }),
     ),
-    draw: useRoundAction(roundId, (body: { num_teams?: number; seed?: number; allow_short_team?: boolean }) =>
+    draw: useRoundAction(roundId, (body: { num_teams?: number; seed?: number; allow_short_team?: boolean; competition?: string | null }) =>
       api<RoundDetail>(`${base}/draw`, { method: 'POST', body: json(body) }),
     ),
     checkin: useRoundAction(roundId, ({ playerId, status }: { playerId: number; status: 'PRESENTE' | 'FALTOU' | null }) =>
