@@ -1,7 +1,7 @@
 from datetime import date, time
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, Integer, Numeric, SmallInteger, String, Text, Time
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, SmallInteger, String, Text, Time
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,4 +55,10 @@ class PeladaSettings(TimestampMixin, Base):
     # Cobrança por WhatsApp (editável só pelo superadmin)
     charge_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     pix_key: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    # Chatbot de cobrança (WhatsApp de um admin, via Evolution API): só o superadmin altera
+    chatbot_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    chatbot_daily_limit: Mapped[int] = mapped_column(SmallInteger, default=40, server_default="40")
+    chatbot_owner_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     hidden_pages: Mapped[dict[str, list[str]]] = mapped_column(JSONB, default=dict, server_default="{}")

@@ -61,6 +61,34 @@ services:
       - ./frontend:/app
       - /app/node_modules
 
+  # Chatbot de cobrança: ponte não oficial com o WhatsApp (só sobe com --profile chatbot)
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: noemia-cup-evolution
+    labels: *labels
+    profiles: ["chatbot"]
+    environment:
+      SERVER_URL: http://localhost:8081
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-dev-evolution-key}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: pelada_dev
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      DEL_INSTANCE: "false"
+      LOG_LEVEL: ERROR,WARN
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+
 volumes:
   pgdata:
   media:

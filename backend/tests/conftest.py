@@ -11,6 +11,9 @@ import pytest
 
 from app.core.config import get_settings
 
+# Nos testes, a fila do chatbot é enviada chamando process_outbox() direto (sem tarefa de fundo)
+os.environ.setdefault("CHATBOT_WORKER", "false")
+
 
 @pytest.fixture(scope="session")
 def test_db_url() -> str:

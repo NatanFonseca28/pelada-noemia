@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
     # football-data.org: catálogo de clubes para os nomes dos times do sorteio (nunca vai ao front)
     football_data_token: str | None = None
+    # Chatbot de cobrança: Evolution API (ponte não oficial com o WhatsApp de um admin)
+    evolution_url: str | None = None
+    evolution_api_key: str | None = None
+    evolution_instance: str = "pelada"
+    whatsapp_webhook_secret: str | None = None
+    # endereço pelo qual a Evolution API chama o webhook desta API (ex.: https://api.../api)
+    chatbot_webhook_base: str | None = None
+    chatbot_worker: bool = True  # tarefa que envia a fila (desligada nos testes)
 
     admin_email: str = "admin@pelada.app"
     admin_password: str = "admin123-dev-only"

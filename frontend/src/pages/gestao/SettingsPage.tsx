@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '@/api/client'
 import { useSaveSettings, useSettings } from '@/api/queries'
 import { useCompetitions, useSyncCatalog } from '@/api/catalog'
+import { useChatbotAdmin, useChatbotStatus } from '@/api/chatbot'
 import { usePageAccess } from '@/lib/pages'
 import type { KnockoutTieRule, RedCardRule, Settings, Tiebreaker, TopScorerTiebreak } from '@/api/types'
 import { Alert, Button, Card, Field, PageHeader, Spinner } from '@/components/ui'
@@ -20,6 +21,82 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function NumberInput({ value, onChange, min, max, step }: { value: number | string; onChange: (v: string) => void; min?: number; max?: number; step?: number }) {
   return <input className="input" type="number" inputMode="decimal" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} required />
+}
+
+const STATE_LABEL: Record<string, string> = {
+  open: 'Conectado',
+  connecting: 'Aguardando leitura do QR Code',
+  close: 'Desconectado',
+  missing: 'Ainda não conectado',
+  offline: 'Evolution API fora do ar',
+  unconfigured: 'Não configurado no servidor',
+}
+
+/** Superadmin: chatbot de cobrança pelo WhatsApp de um admin (Evolution API, não oficial). */
+function ChatbotSection() {
+  const status = useChatbotStatus()
+  const { connect, disconnect, save } = useChatbotAdmin()
+  const [qr, setQr] = useState<string | null>(null)
+  const [limit, setLimit] = useState<number | null>(null)
+  const s = status.data
+  // enquanto o QR está na tela, confere a cada 3 s se o celular já leu
+  useEffect(() => {
+    if (!qr) return
+    const id = setInterval(async () => {
+      const r = await status.refetch()
+      if (r.data?.state === 'open') setQr(null)
+    }, 3000)
+    return () => clearInterval(id)
+  }, [qr, status])
+  if (!s) return <Card className="p-4"><Spinner /></Card>
+  const err = connect.error ?? disconnect.error ?? save.error
+  const dailyLimit = limit ?? s.daily_limit
+  const apply = (enabled: boolean) => save.mutate({ enabled, daily_limit: dailyLimit, owner_user_id: s.owner_user_id })
+
+  return (
+    <Card className="p-4">
+      <h2 className="mb-1 font-display text-xl font-bold">Chatbot de cobrança</h2>
+      <p className="mb-3 text-sm text-muted">
+        Envia as cobranças e responde os jogadores (Pix copia e cola, "já paguei", "não vou jogar", falar com o gestor) pelo WhatsApp
+        do administrador conectado. A mensagem é a mesma configurada em "Mensagem de cobrança".
+      </p>
+      <div className="mb-3"><Alert>
+        Conexão <strong>não oficial</strong> (como o WhatsApp Web): o WhatsApp pode <strong>bloquear o número</strong>. O chatbot envia com
+        intervalo de 25 a 60 s, só para quem aceitou WhatsApp, no máximo 1 cobrança a cada 3 dias por jogador e até o limite diário.
+      </Alert></div>
+      {err && <div className="mb-3"><Alert>{err instanceof ApiError ? err.message : 'Erro'}</Alert></div>}
+      <dl className="mb-3 grid gap-2 text-sm sm:grid-cols-2">
+        <div><dt className="text-muted">WhatsApp</dt><dd className="font-medium">{STATE_LABEL[s.state] ?? s.state}{s.owner_name && s.state === 'open' ? ` (${s.owner_name})` : ''}</dd></div>
+        <div><dt className="text-muted">Chatbot</dt><dd className="font-medium">{s.enabled ? 'Ligado' : 'Desligado'} · {s.charges_today} cobrança(s) nas últimas 24 h · {s.pending} na fila</dd></div>
+      </dl>
+      {qr && (
+        <div className="mb-3 rounded-btn border border-line p-3 text-center">
+          <img src={qr} alt="QR Code para conectar o WhatsApp" className="mx-auto h-56 w-56 bg-white p-2" />
+          <p className="mt-2 text-sm text-muted">No celular do administrador: WhatsApp → Aparelhos conectados → Conectar um aparelho → aponte para o QR Code.</p>
+        </div>
+      )}
+      <div className="flex flex-wrap items-end gap-3">
+        {s.state !== 'open' ? (
+          <Button type="button" loading={connect.isPending} disabled={s.state === 'unconfigured'} onClick={() => connect.mutate(undefined, { onSuccess: (r) => setQr(r.qr) })}>
+            Conectar WhatsApp
+          </Button>
+        ) : (
+          <Button type="button" variant="secondary" loading={disconnect.isPending} onClick={() => confirm('Desconectar o WhatsApp do chatbot?') && disconnect.mutate()}>
+            Desconectar
+          </Button>
+        )}
+        <Button type="button" variant={s.enabled ? 'secondary' : 'primary'} loading={save.isPending} onClick={() => apply(!s.enabled)}>
+          {s.enabled ? 'Pausar chatbot' : 'Ligar chatbot'}
+        </Button>
+        <Field label="Limite de cobranças por dia">
+          <NumberInput value={dailyLimit} onChange={(v) => setLimit(Number(v))} min={1} max={200} />
+        </Field>
+        {limit !== null && limit !== s.daily_limit && (
+          <Button type="button" variant="secondary" loading={save.isPending} onClick={() => apply(s.enabled)}>Salvar limite</Button>
+        )}
+      </div>
+    </Card>
+  )
 }
 
 /** Superadmin: catálogo de clubes (football-data.org) usado nos nomes dos times do sorteio. */
@@ -204,6 +281,7 @@ export function SettingsPage() {
           Dois amarelos na partida viram vermelho
         </label>
       </Section>
+      {superadmin && <ChatbotSection />}
       {superadmin && <CatalogSection />}
     </form>
   )

@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +18,7 @@ from app.routers import (
     audit,
     auth,
     catalog,
+    chatbot,
     dashboard,
     export,
     finance,
@@ -32,7 +35,18 @@ app_settings = get_settings()  # em produção, falha aqui se a configuração f
 configure_logging(json_logs=app_settings.is_production)
 init_monitoring()  # Sentry, só se SENTRY_DSN estiver definido
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # fila do chatbot que ficou pendente (ex.: a API reiniciou no meio de um disparo)
+    from app.db.session import SessionLocal
+    from app.services.chatbot_service import kick
+
+    kick(SessionLocal)
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Pelada Manager API",
     version="0.1.0",
     description="API para gestão da pelada semanal: jogadores, sorteio, campeonato e súmulas.",
@@ -100,7 +114,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 api = APIRouter(prefix="/api")
 for module in (auth, users, players, rounds, tournaments, stats, settings, finance, dashboard, export, audit, access,
-               media, catalog):
+               media, catalog, chatbot):
     api.include_router(module.router)
 
 
