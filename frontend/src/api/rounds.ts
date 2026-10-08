@@ -33,6 +33,7 @@ function useRoundAction<V>(roundId: number, fn: (vars: V) => Promise<RoundDetail
       qc.setQueryData(['rounds', roundId], data)
       qc.invalidateQueries({ queryKey: ['rounds'], exact: true })
       qc.invalidateQueries({ queryKey: ['rounds', 'current'] })
+      qc.invalidateQueries({ queryKey: ['tournament'] }) // empréstimos aparecem nas partidas
     },
   })
 }
@@ -52,6 +53,10 @@ export function useRoundActions(roundId: number) {
     draw: useRoundAction(roundId, (body: { num_teams?: number; seed?: number; allow_short_team?: boolean }) =>
       api<RoundDetail>(`${base}/draw`, { method: 'POST', body: json(body) }),
     ),
+    checkin: useRoundAction(roundId, ({ playerId, status }: { playerId: number; status: 'PRESENTE' | 'FALTOU' | null }) =>
+      api<RoundDetail>(`${base}/checkin/${playerId}`, { method: 'PUT', body: json({ status }) }),
+    ),
+    allPresent: useRoundAction(roundId, () => api<RoundDetail>(`${base}/checkin/all-present`, { method: 'POST' })),
     move: useRoundAction(roundId, (body: { player_id: number; team_id: number | null; role?: TeamRole }) =>
       api<RoundDetail>(`${base}/move`, { method: 'POST', body: json(body) }),
     ),

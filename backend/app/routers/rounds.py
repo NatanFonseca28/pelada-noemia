@@ -1,8 +1,17 @@
 from fastapi import APIRouter, status
 
-from app.core.deps import AdminUser, CurrentUser, SessionDep
+from app.core.deps import AdminUser, CurrentUser, SessionDep, StaffUser
 from app.core.errors import NotFoundError
-from app.schemas.round import AttendanceSet, DrawRequest, MoveRequest, RoundCreate, RoundDetail, RoundSummary
+from app.schemas.round import (
+    AttendanceSet,
+    CheckinSet,
+    DrawRequest,
+    MoveRequest,
+    RoundCreate,
+    RoundDetail,
+    RoundSummary,
+)
+from app.services.callroll_service import CallRollService
 from app.services.round_service import RoundService
 
 router = APIRouter(prefix="/rounds", tags=["Rodadas e sorteio"])
@@ -96,3 +105,17 @@ _status_route("open", "Abrir a lista de presença")
 _status_route("close", "Fechar a lista de presença")
 _status_route("lock", "Travar os times")
 _status_route("unlock", "Destravar os times")
+
+
+@router.put("/{round_id}/checkin/{player_id}", response_model=RoundDetail)
+async def set_checkin(round_id: int, player_id: int, data: CheckinSet, user: StaffUser, session: SessionDep):
+    """Chamada no local (admin ou mesário): PRESENTE, FALTOU ou null para desfazer. Recalcula os empréstimos."""
+    await CallRollService(session).set_checkin(round_id, player_id, data.status, user)
+    return await RoundService(session).detail(round_id, user)
+
+
+@router.post("/{round_id}/checkin/all-present", response_model=RoundDetail)
+async def all_present(round_id: int, user: StaffUser, session: SessionDep):
+    """Marca como presentes todos os confirmados ainda não chamados."""
+    await CallRollService(session).all_present(round_id, user)
+    return await RoundService(session).detail(round_id, user)

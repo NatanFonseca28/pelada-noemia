@@ -19,19 +19,22 @@ from app.models.round import (
     TeamPlayer,
     TeamRole,
 )
-from app.models.tournament import Match, Tournament
+from app.models.tournament import Match, MatchStatus, Tournament
 from app.models.user import User
 from app.repositories.settings_repo import SettingsRepository
 from app.schemas.round import (
     AttendanceOut,
     DrawInfo,
+    LoanOut,
     RoundDetail,
     RoundSummary,
     SimplePlayer,
     TeamOut,
     TeamPlayerOut,
+    UnfilledOut,
 )
 from app.services import audit_service
+from app.services.callroll_service import CallRollService
 
 EDITABLE = {RoundStatus.ABERTA, RoundStatus.FECHADA}
 
@@ -148,6 +151,7 @@ class RoundService:
                      for pid in player_ids if pid not in confirmed_ids]
 
         tournament_id = await self.session.scalar(select(Tournament.id).where(Tournament.round_id == rnd.id))
+        loans, unfilled = await self._loans(rnd.id, viewer.role == UserRole.ADMIN)
         return RoundDetail(
             id=rnd.id,
             tournament_id=tournament_id,
@@ -175,6 +179,8 @@ class RoundService:
             teams=team_out,
             not_in_teams=not_in_teams,
             shared_goalkeepers=shared_gks,
+            loans=loans,
+            unfilled=unfilled,
             no_longer_confirmed=no_longer,
         )
 
@@ -426,7 +432,34 @@ class RoundService:
     @staticmethod
     def _attendance_out(a: Attendance, p: Player) -> AttendanceOut:
         return AttendanceOut(player_id=p.id, name=p.display_name, type=p.type,
-                             primary_position=p.primary_position, source=a.source, updated_at=a.updated_at)
+                             primary_position=p.primary_position, source=a.source, updated_at=a.updated_at,
+                             checkin=a.checkin)
+
+    async def _loans(self, round_id: int, show_strength: bool) -> "tuple[list[LoanOut], list[UnfilledOut]]":
+        data = await CallRollService(self.session).plan(round_id)
+        if data is None:
+            return [], []
+        team_name = {t.id: t.name for t in data.teams.values()}
+
+        def label(match_id: int) -> str:
+            m = data.matches[match_id]
+            return f"{team_name.get(m.home_team_id, '?')} × {team_name.get(m.away_team_id, '?')}"
+
+        loans = [
+            LoanOut(match_id=x.match_id, match_seq=data.matches[x.match_id].seq, match_label=label(x.match_id),
+                    finished=data.matches[x.match_id].status == MatchStatus.ENCERRADA,
+                    team_id=x.team_id, team_name=team_name[x.team_id], player_id=x.player_id,
+                    player_name=data.names.get(x.player_id, "?"), from_team_name=team_name[x.from_team_id],
+                    replaces_name=data.names.get(x.replaces_id, "?"),
+                    strength_delta=x.strength_delta if show_strength else None)
+            for x in data.plan.loans
+        ]
+        unfilled = [
+            UnfilledOut(match_id=mid, match_seq=data.matches[mid].seq, match_label=label(mid),
+                        missing_names=[data.names.get(pid, "?") for pid in ids])
+            for mid, ids in data.plan.unfilled.items()
+        ]
+        return sorted(loans, key=lambda x: (x.match_seq, x.team_name)), sorted(unfilled, key=lambda x: x.match_seq)
 
     async def _round(self, round_id: int) -> Round:
         rnd = await self.session.get(Round, round_id)

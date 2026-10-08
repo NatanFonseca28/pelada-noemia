@@ -9,7 +9,7 @@ from app.models.password_reset import PasswordReset
 from app.models.player import Player
 from app.models.round import Attendance, Draw, Round, Team, TeamPlayer
 from app.models.settings import PeladaSettings
-from app.models.tournament import Match, Tournament, TournamentGroup, TournamentGroupTeam
+from app.models.tournament import Match, MatchLoan, Tournament, TournamentGroup, TournamentGroupTeam
 from app.models.user import RefreshToken, User
 
 __all__ = [
@@ -22,6 +22,7 @@ __all__ = [
     "FinanceCollection",
     "Match",
     "MatchEvent",
+    "MatchLoan",
     "MediaFile",
     "EventType",
     "MonthlyFee",

@@ -226,12 +226,14 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
                 key={p.player_id}
                 variant="secondary"
                 className="justify-start"
+                title={p.role === 'EMPRESTADO' ? 'Emprestado de um time de fora' : undefined}
                 loading={add.isPending}
                 onClick={() =>
                   step.type === 'GOL' ? setStep({ kind: 'assist', teamId: pickTeam, scorerId: p.player_id }) : register(step.type, pickTeam, p.player_id)
                 }
               >
                 <PlayerName id={p.player_id} name={p.name} />
+                {p.role === 'EMPRESTADO' && <span className="ml-1 text-[10px] font-semibold uppercase text-muted">emprest.</span>}
               </Button>
             ))}
             {step.type === 'GOL' && (

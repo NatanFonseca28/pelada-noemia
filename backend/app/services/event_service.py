@@ -16,6 +16,7 @@ from app.models.tournament import Match, MatchStatus, Tournament
 from app.models.user import User
 from app.schemas.event import EventIn, EventOut, MatchSheet, RosterPlayer
 from app.services import audit_service
+from app.services.callroll_service import CallRollService
 
 
 def score_from_events(match: Match, events: list[MatchEvent]) -> tuple[int, int]:
@@ -42,15 +43,23 @@ class EventService:
         events = await self._events(m.id)
         names = await self._names({x for e in events for x in (e.player_id, e.assist_player_id) if x})
         rosters: dict[int, list[RosterPlayer]] = {}
+        calls = CallRollService(self.session)
+        loans = await calls.match_loans(m)
+        round_id = await self.session.scalar(select(Tournament.round_id).where(Tournament.id == m.tournament_id))
+        absent = await calls.absent_ids(round_id)
         for team_id in filter(None, (m.home_team_id, m.away_team_id)):
             rows = (await self.session.execute(
                 select(TeamPlayer, Player).join(Player, Player.id == TeamPlayer.player_id)
                 .where(TeamPlayer.team_id == team_id)
             )).all()
-            rosters[team_id] = sorted(
-                (RosterPlayer(player_id=p.id, name=p.display_name, role=tp.role.value) for tp, p in rows),
-                key=lambda r: r.name.casefold(),
-            )
+            # Quem faltou sai da súmula; quem veio emprestado de um time de fora entra
+            roster = [RosterPlayer(player_id=p.id, name=p.display_name, role=tp.role.value)
+                      for tp, p in rows if p.id not in absent]
+            loaned = [x.player_id for x in loans if x.team_id == team_id]
+            if loaned:
+                roster += [RosterPlayer(player_id=p.id, name=p.display_name, role="EMPRESTADO")
+                           for p in await self.session.scalars(select(Player).where(Player.id.in_(loaned)))]
+            rosters[team_id] = sorted(roster, key=lambda r: r.name.casefold())
         return MatchSheet(
             match_id=m.id, status=m.status.value, home_team_id=m.home_team_id, away_team_id=m.away_team_id,
             home_score=m.home_score, away_score=m.away_score,
@@ -70,8 +79,9 @@ class EventService:
             raise ValidationError("Os times desta partida ainda não estão definidos")
         if data.team_id not in (m.home_team_id, m.away_team_id):
             raise ValidationError("Time não participa desta partida")
+        loaned = {x.player_id for x in await CallRollService(self.session).match_loans(m) if x.team_id == data.team_id}
         for pid in filter(None, (data.player_id, data.assist_player_id)):
-            in_team = await self.session.scalar(select(TeamPlayer.id).where(
+            in_team = pid in loaned or await self.session.scalar(select(TeamPlayer.id).where(
                 TeamPlayer.team_id == data.team_id, TeamPlayer.player_id == pid))
             if not in_team:
                 raise ValidationError("Jogador não pertence a este time")

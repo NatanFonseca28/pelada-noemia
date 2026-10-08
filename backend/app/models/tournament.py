@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, SmallInteger, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, SmallInteger, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -86,3 +86,18 @@ class Match(Base):
     away_penalties: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     winner_team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class MatchLoan(Base):
+    """Empréstimo usado numa partida ENCERRADA (as demais são calculadas na hora a partir da chamada)."""
+
+    __tablename__ = "match_loans"
+    __table_args__ = (UniqueConstraint("match_id", "player_id", name="uq_match_loans_match_player"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="RESTRICT"))
+    from_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
+    replaces_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="RESTRICT"))
+    strength_delta: Mapped[float] = mapped_column(Numeric(4, 2), default=0)

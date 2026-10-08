@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -28,6 +29,7 @@ class AttendanceOut(BaseModel):
     primary_position: Position | None
     source: AttendanceSource
     updated_at: datetime
+    checkin: str | None = None  # chamada no local: PRESENTE | FALTOU | None (não chamado)
 
 
 class TeamPlayerOut(BaseModel):
@@ -74,6 +76,35 @@ class SimplePlayer(BaseModel):
     name: str
 
 
+class LoanOut(BaseModel):
+    """Empréstimo de um jogador de um time que está de fora para completar um time desfalcado."""
+
+    match_id: int
+    match_seq: int
+    match_label: str
+    finished: bool
+    team_id: int
+    team_name: str
+    player_id: int
+    player_name: str
+    from_team_name: str
+    replaces_name: str
+    strength_delta: float | None = None  # só ADMIN (força = nível + velocidade, que são internos)
+
+
+class UnfilledOut(BaseModel):
+    """Partida com time desfalcado sem ninguém para emprestar (ex.: só 2 times)."""
+
+    match_id: int
+    match_seq: int
+    match_label: str
+    missing_names: list[str]
+
+
+class CheckinSet(BaseModel):
+    status: Literal["PRESENTE", "FALTOU"] | None
+
+
 class RoundDetail(RoundSummary):
     attendances: list[AttendanceOut]
     absences: list[AttendanceOut]  # avisaram que não vão (CANCELADO); sem registro = sem resposta
@@ -84,6 +115,8 @@ class RoundDetail(RoundSummary):
     not_in_teams: list[SimplePlayer]  # confirmados fora dos times (reservas ou entraram depois do sorteio)
     shared_goalkeepers: list[SimplePlayer] = []  # goleiros fixos sem time: agarram para todos
     no_longer_confirmed: list[SimplePlayer]  # estão em time mas cancelaram
+    loans: list[LoanOut] = []  # escala de empréstimos depois da chamada (com campeonato montado)
+    unfilled: list[UnfilledOut] = []
 
 
 class AttendanceSet(BaseModel):

@@ -62,6 +62,14 @@ class GroupOut(BaseModel):
     standings: list[StandingRow]
 
 
+class MatchLoanOut(BaseModel):
+    team_id: int  # time que recebe o emprestado
+    player_id: int
+    player_name: str
+    from_team_name: str
+    replaces_name: str
+
+
 class MatchOut(BaseModel):
     id: int
     seq: int
@@ -89,6 +97,7 @@ class MatchOut(BaseModel):
     elapsed_before_pause: int
     ended_at: datetime | None
     version: int
+    loans: list[MatchLoanOut] = []  # empréstimos para completar time desfalcado (chamada)
 
 
 class TournamentOut(BaseModel):

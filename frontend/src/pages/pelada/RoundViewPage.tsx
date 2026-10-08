@@ -6,6 +6,7 @@ import type { RoundDetail } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { ShareButton } from '@/components/ShareButton'
 import { SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
+import { CallRollPanel } from '@/components/rounds/CallRollPanel'
 import { useToast } from '@/contexts/feedback'
 import { Alert, Avatar, Badge, Button, Card, EmptyState, ICON_STROKE, PageHeader, PlayerName, PositionBadge, QueryState, Skeleton, TypeLegend, cx, errorMessage } from '@/components/ui'
 import { formatDate, roundStatusLabel } from '@/lib/labels'
@@ -123,6 +124,8 @@ function RoundView({ round }: { round: RoundDetail }) {
           </div>
         </section>
       ) : null}
+
+      {round.teams.length > 0 && <CallRollPanel round={round} />}
 
       <section aria-labelledby="confirmados">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">

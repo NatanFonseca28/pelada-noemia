@@ -220,6 +220,8 @@ export interface AttendanceItem {
   primary_position: Position | null
   source: 'APP' | 'ADMIN'
   updated_at: string
+  /** chamada no local; null = ainda não chamado */
+  checkin?: 'PRESENTE' | 'FALTOU' | null
 }
 
 export interface TeamPlayerItem {
@@ -290,6 +292,25 @@ export interface RoundDetail extends RoundSummary {
   /** goleiros fixos sem time: agarram para os times que estiverem em campo */
   shared_goalkeepers: { player_id: number; name: string }[]
   no_longer_confirmed: { player_id: number; name: string }[]
+  /** escala de empréstimos depois da chamada (só com campeonato montado) */
+  loans?: Loan[]
+  /** partidas com time desfalcado e ninguém de fora para emprestar */
+  unfilled?: { match_id: number; match_seq: number; match_label: string; missing_names: string[] }[]
+}
+
+export interface Loan {
+  match_id: number
+  match_seq: number
+  match_label: string
+  finished: boolean
+  team_id: number
+  team_name: string
+  player_id: number
+  player_name: string
+  from_team_name: string
+  replaces_name: string
+  /** força média do time com o emprestado − com quem faltou (só ADMIN) */
+  strength_delta: number | null
 }
 
 // ---------- Campeonato ----------
@@ -364,6 +385,8 @@ export interface MatchItem {
   /** segundos jogados, sem pausas */
   elapsed_before_pause: number
   version: number
+  /** quem completa time desfalcado nesta partida (chamada) */
+  loans?: { team_id: number; player_id: number; player_name: string; from_team_name: string; replaces_name: string }[]
 }
 
 export interface Tournament {

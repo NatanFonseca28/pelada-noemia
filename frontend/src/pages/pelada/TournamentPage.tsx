@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ClipboardList, Flag, Pencil, Plus, RotateCcw, Settings2, Timer, Trophy } from 'lucide-react'
+import { ArrowLeftRight, ClipboardList, Flag, Pencil, Plus, RotateCcw, Settings2, Timer, Trophy } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { useRounds } from '@/api/rounds'
@@ -137,6 +137,15 @@ function MatchCard({ match, isNext, canEdit, onEdit, onReopen, onSheet }: {
         }
       />
       <KickoffNote match={match} className="mt-2" />
+      {match.loans?.map((x) => (
+        <p key={x.player_id} className="mt-1.5 flex items-start gap-1.5 text-xs">
+          <ArrowLeftRight size={14} strokeWidth={ICON_STROKE} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+          <span>
+            Time {x.team_id === match.home?.id ? match.home?.name : match.away?.name} completa com <strong>{x.player_name}</strong>{' '}
+            <span className="text-muted">(do {x.from_team_name}, no lugar de {x.replaces_name})</span>
+          </span>
+        </p>
+      ))}
       {duration && (
         <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted">
           <Timer size={14} strokeWidth={ICON_STROKE} aria-hidden />

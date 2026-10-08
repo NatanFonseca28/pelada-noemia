@@ -4,6 +4,7 @@ from enum import StrEnum
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -57,7 +58,10 @@ class Round(TimestampMixin, Base):
 
 class Attendance(Base):
     __tablename__ = "attendances"
-    __table_args__ = (UniqueConstraint("round_id", "player_id", name="uq_attendances_round_player"),)
+    __table_args__ = (
+        UniqueConstraint("round_id", "player_id", name="uq_attendances_round_player"),
+        CheckConstraint("checkin IN ('PRESENTE', 'FALTOU')", name="checkin_values"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id", ondelete="CASCADE"), index=True)
@@ -68,6 +72,9 @@ class Attendance(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    # Chamada no local: PRESENTE | FALTOU (None = ainda não chamado)
+    checkin: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    checkin_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Draw(Base):

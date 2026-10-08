@@ -27,6 +27,7 @@ from app.schemas.tournament import (
     FormatOptionOut,
     FormatsOut,
     GroupOut,
+    MatchLoanOut,
     MatchOut,
     MatchResultIn,
     StandingRow,
@@ -34,6 +35,7 @@ from app.schemas.tournament import (
     TournamentOut,
 )
 from app.services import audit_service
+from app.services.callroll_service import CallRollService
 
 STAGE_LABEL = {"SF1": "Semifinal 1", "SF2": "Semifinal 2", "R": "2º × 3º", "F": "Final"}
 
@@ -243,6 +245,7 @@ class TournamentService:
         else:
             m.winner_team_id = (m.home_team_id if m.home_score > m.away_score
                                 else m.away_team_id if m.away_score > m.home_score else None)
+        await CallRollService(self.session).freeze(m)  # grava os empréstimos usados nesta partida
         m.status = MatchStatus.ENCERRADA
         if data.started_at is not None:
             m.started_at = data.started_at
@@ -261,6 +264,7 @@ class TournamentService:
         t = await self._tournament(m.tournament_id)
         await self.ensure_no_finished_dependents(t, m)
         before = self._score_snapshot(m)
+        await CallRollService(self.session).unfreeze(m)  # volta a seguir a escala da chamada
         m.status = MatchStatus.AGENDADA  # a súmula (e o placar que vem dela) é preservada
         m.home_penalties = m.away_penalties = None
         m.winner_team_id = None
@@ -390,6 +394,14 @@ class TournamentService:
              for m in matches],
             campaign_ranking(tables) if t.format_code != FormatCode.PELADA_NORMAL else {},
         )
+        loan_data = await CallRollService(self.session).plan(t.round_id)
+        loans_by_match: dict[int, list[MatchLoanOut]] = {}
+        if loan_data:
+            for x in loan_data.plan.loans:
+                loans_by_match.setdefault(x.match_id, []).append(MatchLoanOut(
+                    team_id=x.team_id, player_id=x.player_id, player_name=loan_data.names.get(x.player_id, "?"),
+                    from_team_name=teams[x.from_team_id].name if x.from_team_id in teams else "?",
+                    replaces_name=loan_data.names.get(x.replaces_id, "?")))
         match_out = [
             MatchOut(
                 id=m.id, seq=m.seq, code=m.code, stage=m.stage, leg=m.leg, group=group_name.get(m.group_id),
@@ -401,6 +413,7 @@ class TournamentService:
                 home_penalties=m.home_penalties, away_penalties=m.away_penalties,
                 winner_team_id=m.winner_team_id, kickoff_team_id=kickoffs.get(m.id), started_at=m.started_at,
                 elapsed_before_pause=m.elapsed_before_pause, ended_at=m.ended_at, version=m.version,
+                loans=loans_by_match.get(m.id, []),
             )
             for m in matches
         ]
