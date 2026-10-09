@@ -32,7 +32,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { ChargePanel } from '@/components/finance/ChargePanel'
-import { ChatbotReplies } from '@/components/finance/ChatbotReplies'
 import { FinanceChart } from '@/components/finance/FinanceChart'
 import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Skeleton, Spinner, TypeDot, TypeLegend, cx } from '@/components/ui'
 import { useCountUp } from '@/hooks/useCountUp'
@@ -942,7 +941,6 @@ export function FinancePage() {
       ) : tab === 'mensalidades' ? (
         data.rows.length ? (
           <>
-            <ChatbotReplies />
             <ChargePanel count={data.to_charge_count} monthlyFee={data.config.monthly_fee} />
             <FeesGrid data={data} delinquentOnly={delinquentOnly} onDelinquentOnly={setDelinquentOnly} />
           </>

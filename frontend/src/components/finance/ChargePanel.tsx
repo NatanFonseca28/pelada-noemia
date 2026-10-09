@@ -1,10 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Bot, Check, MessageCircle, SkipForward } from 'lucide-react'
-import { useChatbotCharge, useChatbotStatus } from '@/api/chatbot'
-import { ApiError } from '@/api/client'
+import { Check, MessageCircle, SkipForward } from 'lucide-react'
 import { useChargeMessage, useRegisterCharge, useToCharge } from '@/api/finance'
-import { useToast } from '@/contexts/feedback'
-import { errorMessage } from '@/lib/errors'
 import type { Delinquent } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Badge, Button, ErrorState, ICON_STROKE, Modal, PlayerName, Skeleton, cx } from '@/components/ui'
@@ -130,33 +126,7 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
   const { data: msg } = useChargeMessage()
   const { user } = useAuth()
   const register = useRegisterCharge()
-  const { data: botStatus } = useChatbotStatus(open && count > 0)
-  const botCharge = useChatbotCharge()
-  const toast = useToast()
   if (count === 0) return null
-  // chatbot ligado e conectado: as cobranças saem pelo WhatsApp do dono do número, com fila e respostas automáticas
-  const bot = !!botStatus?.enabled && botStatus.state === 'open'
-  const botReady = data?.filter((d) => d.phone && d.whatsapp_opt_in).length ?? 0
-
-  const chargeAllByBot = () => {
-    if (!confirm(`Cobrar ${botReady} pelo chatbot (WhatsApp oficial da pelada)?`)) return
-    botCharge.mutate({}, {
-      onSuccess: (r) => toast({
-        message: `${r.queued.length} cobrança(s) na fila${r.skipped.length ? `; ${r.skipped.length} pulada(s): ${r.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}` : ''}`,
-        tone: 'success',
-      }),
-      onError: (err) => toast({ message: errorMessage(err, 'Não foi possível cobrar'), tone: 'error' }),
-    })
-  }
-  const chargeOneByBot = (d: Delinquent, force = false) =>
-    botCharge.mutate({ playerId: d.player_id, force }, {
-      onSuccess: () => toast({ message: `Cobrança de ${d.name} na fila do chatbot`, tone: 'success' }),
-      onError: (err) => {
-        if (err instanceof ApiError && err.status === 409 && !force) {
-          if (confirm(`${err.message} Cobrar mesmo assim?`)) chargeOneByBot(d, true)
-        } else toast({ message: errorMessage(err, 'Não foi possível cobrar'), tone: 'error' })
-      },
-    })
 
   const ctx: ChargeContext = { pixKey: msg?.pix_key ?? null, monthlyFee, gestor: user?.name.split(' ')[0] ?? '' }
   const template = msg?.message ?? ''
@@ -189,27 +159,11 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
                   </button>
                 ))}
               </div>
-              {bot ? (
-                <Button size="sm" onClick={chargeAllByBot} disabled={!botReady} loading={botCharge.isPending}>
-                  <Bot size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar todos pelo chatbot ({botReady})
-                </Button>
-              ) : (
-                <Button size="sm" onClick={() => setAll(true)} disabled={!withPhone}>
-                  <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar todos ({withPhone})
-                </Button>
-              )}
+              <Button size="sm" onClick={() => setAll(true)} disabled={!withPhone}>
+                <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar todos ({withPhone})
+              </Button>
             </div>
-            {bot ? (
-              <p className="px-2 pb-1 text-xs text-muted">
-                O chatbot envia pelo WhatsApp oficial da pelada, assinando como {botStatus?.owner_name?.split(' ')[0] ?? 'gestor'}, e cuida das respostas.
-                {(botStatus?.pending ?? 0) > 0 && <strong className="ml-1 text-ink">{botStatus?.pending} mensagem(ns) na fila…</strong>}
-              </p>
-            ) : (
-              <p className="px-2 pb-1 text-xs text-muted">
-                A mensagem sai do WhatsApp deste aparelho, com a sua assinatura.
-                {botStatus?.enabled && <span className="ml-1 text-danger-ink">O chatbot está ligado, mas o WhatsApp oficial não está respondendo.</span>}
-              </p>
-            )}
+            <p className="px-2 pb-1 text-xs text-muted">A mensagem sai do WhatsApp deste aparelho, com a sua assinatura.</p>
             <ul>
               {data?.map((d) => {
                 const text = renderChargeMessage(template, chargeValues(d, ctx))
@@ -226,18 +180,13 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
                       </p>
                       <ChargedInfo d={d} />
                     </div>
-                    {bot && d.phone && d.whatsapp_opt_in && (
-                      <Button size="sm" onClick={() => chargeOneByBot(d)} loading={botCharge.isPending}>
-                        <Bot size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar
-                      </Button>
-                    )}
                     <ChargeLink
                       d={d}
                       text={text}
                       onOpened={() => register.mutate(d.player_id)}
                       className="press inline-flex min-h-[44px] items-center gap-1.5 rounded-btn border border-primary/40 px-3 font-medium text-primary-ink hover:bg-primary/10"
                     >
-                      <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> {bot ? 'Meu WhatsApp' : 'Cobrar'}
+                      <MessageCircle size={16} strokeWidth={ICON_STROKE} aria-hidden /> Cobrar
                     </ChargeLink>
                   </li>
                 )

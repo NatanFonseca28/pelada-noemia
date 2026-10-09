@@ -3,7 +3,6 @@
 from app.models.access_log import AccessLog
 from app.models.audit import AuditLog
 from app.models.catalog import CatalogClub, CatalogCompetition
-from app.models.chatbot import ChargeConversation, ChargeReply, WhatsAppOutbox
 from app.models.match_event import EventType, MatchEvent
 from app.models.media import MediaFile
 from app.models.finance import CashEntry, CollectionItem, FinanceCollection, MonthlyFee
@@ -20,8 +19,6 @@ __all__ = [
     "AuditLog",
     "CatalogClub",
     "CatalogCompetition",
-    "ChargeConversation",
-    "ChargeReply",
     "CashEntry",
     "CollectionItem",
     "Draw",
@@ -43,5 +40,4 @@ __all__ = [
     "TournamentGroup",
     "TournamentGroupTeam",
     "User",
-    "WhatsAppOutbox",
 ]

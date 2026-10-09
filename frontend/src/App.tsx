@@ -46,7 +46,7 @@ export function App() {
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
-      {/* públicas (sem login): exigidas pela Meta para o WhatsApp oficial */}
+      {/* públicas (sem login) */}
       <Route path="/privacidade" element={<PrivacyPage />} />
       <Route path="/termos" element={<TermsPage />} />
       <Route path="/exclusao-de-dados" element={<DataDeletionPage />} />

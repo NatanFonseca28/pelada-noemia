@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Bot, KeyRound, MessageCircle, UserPlus } from 'lucide-react'
-import { useChatbotReplies } from '@/api/chatbot'
+import { Bell, KeyRound, MessageCircle, UserPlus } from 'lucide-react'
 import { useCreateResetLink, usePasswordRequests, usePendingSignups } from '@/api/queries'
 import type { PasswordRequest } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
@@ -26,8 +25,6 @@ function useNewItemsToast<T extends { id: number }>(items: T[] | undefined, mess
 
 const signupMessage = (fresh: { name: string }[]) =>
   fresh.length === 1 ? `Novo cadastro: ${fresh[0].name}` : `${fresh.length} novos cadastros aguardando aprovação`
-const replyMessage = (fresh: { name: string }[]) =>
-  fresh.length === 1 ? `Chatbot: ${fresh[0].name} respondeu a cobrança` : `Chatbot: ${fresh.length} respostas de cobrança`
 const resetMessage = (fresh: { name: string }[]) =>
   fresh.length === 1 ? `${fresh[0].name} pediu uma senha nova` : `${fresh.length} pedidos de senha nova`
 
@@ -85,17 +82,14 @@ export function NotificationBell() {
   const admin = hasRole('ADMIN')
   const { data: signups } = usePendingSignups(admin)
   const { data: resets } = usePasswordRequests(admin)
-  const { data: botReplies } = useChatbotReplies(admin)
   const [open, setOpen] = useState(false)
   useNewItemsToast(signups, signupMessage)
   useNewItemsToast(resets, resetMessage)
-  useNewItemsToast(botReplies, replyMessage)
 
   if (!admin) return null
   const pending = signups ?? []
   const requests = resets ?? []
-  const replies = botReplies ?? []
-  const count = pending.length + requests.filter((r) => !r.link_sent_at).length + replies.length
+  const count = pending.length + requests.filter((r) => !r.link_sent_at).length
   return (
     <>
       <button
@@ -113,22 +107,10 @@ export function NotificationBell() {
         )}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Avisos">
-        {pending.length === 0 && requests.length === 0 && replies.length === 0 ? (
+        {pending.length === 0 && requests.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">Nada para resolver.</p>
         ) : (
           <div className="space-y-5">
-            {replies.length > 0 && (
-              <section>
-                <h3 className="font-semibold">Respostas do chatbot de cobrança</h3>
-                <p className="flex items-center gap-2 py-2 text-sm text-muted">
-                  <Bot size={17} strokeWidth={ICON_STROKE} aria-hidden />
-                  {replies.length} resposta{replies.length > 1 ? 's' : ''} para conferir (pagamentos, "F" e conversas)
-                </p>
-                <Link to="/gestao/financeiro" onClick={() => setOpen(false)} className="text-sm font-medium text-primary-ink hover:underline">
-                  Abrir no Financeiro
-                </Link>
-              </section>
-            )}
             {requests.length > 0 && (
               <section>
                 <h3 className="font-semibold">Pedidos de senha nova</h3>

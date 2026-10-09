@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui'
 
-/** Páginas públicas (sem login) exigidas pela Meta para o WhatsApp oficial: privacidade, termos e exclusão de dados. */
+/** Páginas públicas (sem login): privacidade, termos de uso e exclusão de dados (LGPD). */
 
 const CONTACT = 'natanfs28@yahoo.com.br'
 const UPDATED = '9 de outubro de 2026'
@@ -47,21 +47,18 @@ export function PrivacyPage() {
         <li>Cadastro: nome, apelido, foto (opcional), e-mail de acesso e telefone celular.</li>
         <li>Pelada: presenças, times, posições e avaliações usadas no sorteio, gols, cartões e estatísticas.</li>
         <li>Financeiro: mensalidades e pagamentos registrados pelos administradores.</li>
-        <li>WhatsApp: mensagens de cobrança enviadas, respostas do jogador ao chatbot e comprovantes enviados por ele.</li>
         <li>Segurança: registros de acesso (data, hora e endereço IP) para proteger as contas.</li>
       </ul>
       <h2>Para que usamos</h2>
       <ul>
         <li>Organizar as partidas e mostrar times, resultados e estatísticas aos participantes.</li>
-        <li>Controlar mensalidades e enviar lembretes de cobrança pelo WhatsApp, só para quem autorizou.</li>
-        <li>Responder às mensagens do jogador (por exemplo, enviar o Pix ou registrar um pagamento para conferência).</li>
+        <li>Controlar mensalidades e lembrar das cobranças pelo WhatsApp (o administrador envia do próprio celular), só para quem autorizou.</li>
       </ul>
       <p>Não vendemos dados nem os usamos para publicidade.</p>
       <h2>Com quem compartilhamos</h2>
       <p>
-        Só com os serviços necessários para o app funcionar: hospedagem (Vercel e Render), banco de dados (Neon) e o
-        WhatsApp Business Platform da Meta, que entrega as mensagens. Telefones e dados financeiros são visíveis apenas
-        aos administradores da pelada.
+        Só com os serviços necessários para o app funcionar: hospedagem (Vercel e Render) e banco de dados (Neon).
+        Telefones e dados financeiros são visíveis apenas aos administradores da pelada.
       </p>
       <h2>Por quanto tempo</h2>
       <p>
@@ -71,8 +68,7 @@ export function PrivacyPage() {
       <h2>Seus direitos (LGPD)</h2>
       <p>
         Você pode pedir acesso, correção, exclusão dos seus dados ou deixar de receber mensagens pelo WhatsApp a qualquer
-        momento, pelo e-mail <Contact /> ou falando com um administrador. Para parar as cobranças pelo WhatsApp, basta
-        também responder "parar" na conversa. Veja como pedir a exclusão em{' '}
+        momento, pelo e-mail <Contact /> ou falando com um administrador. Veja como pedir a exclusão em{' '}
         <Link to="/exclusao-de-dados">Exclusão de dados</Link>.
       </p>
     </LegalLayout>
@@ -94,7 +90,7 @@ export function TermsPage() {
       <h2>Mensalidades e cobranças</h2>
       <ul>
         <li>Valores e regras de pagamento são definidos pelo grupo; o app apenas registra e lembra.</li>
-        <li>Mensagens de cobrança pelo WhatsApp só são enviadas a quem autorizou e por decisão de um administrador.</li>
+        <li>Lembretes de cobrança pelo WhatsApp só são enviados a quem autorizou, pelo próprio administrador.</li>
         <li>Um pagamento só conta como quitado depois que um administrador confere e confirma.</li>
       </ul>
       <h2>Uso adequado</h2>
@@ -114,13 +110,11 @@ export function DataDeletionPage() {
         <li>Ou peça diretamente a um administrador da pelada.</li>
       </ul>
       <p>
-        Confirmamos o pedido e, em até 15 dias, apagamos seu cadastro, telefone, foto, respostas ao chatbot e
-        comprovantes. Registros financeiros e resultados de partidas podem ser mantidos de forma anonimizada (sem seu
+        Confirmamos o pedido e, em até 15 dias, apagamos seu cadastro, telefone e foto. Registros financeiros e resultados de partidas podem ser mantidos de forma anonimizada (sem seu
         nome ou telefone) para a prestação de contas do grupo.
       </p>
       <p>
-        Para apenas deixar de receber mensagens pelo WhatsApp, sem apagar o cadastro, responda "parar" na conversa ou
-        peça a um administrador.
+        Para apenas deixar de receber lembretes pelo WhatsApp, sem apagar o cadastro, peça a um administrador.
       </p>
     </LegalLayout>
   )

@@ -66,17 +66,6 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
     # football-data.org: catálogo de clubes para os nomes dos times do sorteio (nunca vai ao front)
     football_data_token: str | None = None
-    # Chatbot de cobrança: WhatsApp Business Platform (Cloud API oficial da Meta)
-    meta_wa_token: str | None = None  # token permanente de usuário do sistema
-    meta_wa_phone_number_id: str | None = None
-    meta_waba_id: str | None = None
-    meta_app_secret: str | None = None  # valida a assinatura do webhook
-    meta_verify_token: str | None = None  # conferido na verificação do webhook (GET)
-    meta_graph_version: str = "v23.0"
-    meta_template_language: str = "pt_BR"
-    meta_template_charge: str = "cobranca_mensalidade"
-    meta_template_paid: str = "pagamento_confirmado"
-    chatbot_worker: bool = True  # tarefa que envia a fila (desligada nos testes)
 
     admin_email: str = "admin@pelada.app"
     admin_password: str = "admin123-dev-only"

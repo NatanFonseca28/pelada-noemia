@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '@/api/client'
 import { useSaveSettings, useSettings } from '@/api/queries'
 import { useCompetitions, useSyncCatalog } from '@/api/catalog'
-import { useChatbotAdmin, useChatbotStatus } from '@/api/chatbot'
 import { usePageAccess } from '@/lib/pages'
 import type { KnockoutTieRule, RedCardRule, Settings, Tiebreaker, TopScorerTiebreak } from '@/api/types'
 import { Alert, Button, Card, Field, PageHeader, Spinner } from '@/components/ui'
@@ -21,72 +20,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function NumberInput({ value, onChange, min, max, step }: { value: number | string; onChange: (v: string) => void; min?: number; max?: number; step?: number }) {
   return <input className="input" type="number" inputMode="decimal" min={min} max={max} step={step} value={value} onChange={(e) => onChange(e.target.value)} required />
-}
-
-const STATE_LABEL: Record<string, string> = {
-  open: 'Conectado (API oficial)',
-  offline: 'Erro ao falar com a Meta (token ou número)',
-  unconfigured: 'Não configurado no servidor',
-}
-
-const TEMPLATE_LABEL: Record<string, string> = {
-  APPROVED: 'aprovado',
-  PENDING: 'em análise',
-  REJECTED: 'recusado',
-  PAUSED: 'pausado',
-  DISABLED: 'desativado',
-  'NÃO CRIADO': 'não criado',
-}
-
-/** Superadmin: chatbot de cobrança pelo WhatsApp oficial (WhatsApp Business Platform da Meta). */
-function ChatbotSection() {
-  const status = useChatbotStatus(true, true)
-  const { save } = useChatbotAdmin()
-  const [limit, setLimit] = useState<number | null>(null)
-  const s = status.data
-  if (!s) return <Card className="p-4"><Spinner /></Card>
-  const dailyLimit = limit ?? s.daily_limit
-  const apply = (enabled: boolean) => save.mutate({ enabled, daily_limit: dailyLimit, owner_user_id: s.owner_user_id })
-  const templates = Object.entries(s.info?.templates ?? {})
-  const ready = s.state === 'open' && templates.length > 0 && templates.every(([, st]) => st === 'APPROVED')
-
-  return (
-    <Card className="p-4">
-      <h2 className="mb-1 font-display text-xl font-bold">Chatbot de cobrança</h2>
-      <p className="mb-3 text-sm text-muted">
-        Envia as cobranças pelo WhatsApp oficial da pelada e responde os jogadores (Pix copia e cola, "já paguei", "não vou jogar",
-        falar com o gestor). Nada é enviado sem um administrador disparar. Custo da Meta: cerca de R$ 0,04 por cobrança.
-      </p>
-      {save.error && <div className="mb-3"><Alert>{save.error instanceof ApiError ? save.error.message : 'Erro'}</Alert></div>}
-      <dl className="mb-3 grid gap-2 text-sm sm:grid-cols-2">
-        <div><dt className="text-muted">WhatsApp</dt><dd className="font-medium">{STATE_LABEL[s.state] ?? s.state}{s.info?.number ? ` · ${s.info.number}` : ''}{s.info?.name ? ` (${s.info.name})` : ''}</dd></div>
-        <div><dt className="text-muted">Chatbot</dt><dd className="font-medium">{s.enabled ? 'Ligado' : 'Desligado'} · {s.charges_today} cobrança(s) nas últimas 24 h · {s.pending} na fila</dd></div>
-        <div><dt className="text-muted">Assina como</dt><dd className="font-medium">{s.owner_name ?? 'quem ligar o chatbot'}</dd></div>
-        <div>
-          <dt className="text-muted">Modelos na Meta</dt>
-          <dd className="font-medium">
-            {templates.length ? templates.map(([name, st]) => `${name}: ${TEMPLATE_LABEL[st] ?? st}`).join(' · ') : '—'}
-            {s.info?.quality && <span className="ml-1 text-xs text-muted">(qualidade do número: {s.info.quality})</span>}
-          </dd>
-        </div>
-      </dl>
-      {s.info?.error && <div className="mb-3"><Alert>{s.info.error}</Alert></div>}
-      {s.state === 'open' && !ready && (
-        <div className="mb-3"><Alert kind="info">As cobranças só funcionam depois que a Meta aprovar os modelos de mensagem.</Alert></div>
-      )}
-      <div className="flex flex-wrap items-end gap-3">
-        <Button type="button" variant={s.enabled ? 'secondary' : 'primary'} loading={save.isPending} disabled={!s.enabled && s.state !== 'open'} onClick={() => apply(!s.enabled)}>
-          {s.enabled ? 'Pausar chatbot' : 'Ligar chatbot'}
-        </Button>
-        <Field label="Limite de cobranças por dia">
-          <NumberInput value={dailyLimit} onChange={(v) => setLimit(Number(v))} min={1} max={200} />
-        </Field>
-        {limit !== null && limit !== s.daily_limit && (
-          <Button type="button" variant="secondary" loading={save.isPending} onClick={() => apply(s.enabled)}>Salvar limite</Button>
-        )}
-      </div>
-    </Card>
-  )
 }
 
 /** Superadmin: catálogo de clubes (football-data.org) usado nos nomes dos times do sorteio. */
@@ -271,7 +204,6 @@ export function SettingsPage() {
           Dois amarelos na partida viram vermelho
         </label>
       </Section>
-      {superadmin && <ChatbotSection />}
       {superadmin && <CatalogSection />}
     </form>
   )
