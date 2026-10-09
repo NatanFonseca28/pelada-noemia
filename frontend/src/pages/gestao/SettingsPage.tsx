@@ -24,68 +24,58 @@ function NumberInput({ value, onChange, min, max, step }: { value: number | stri
 }
 
 const STATE_LABEL: Record<string, string> = {
-  open: 'Conectado',
-  connecting: 'Aguardando leitura do QR Code',
-  close: 'Desconectado',
-  missing: 'Ainda não conectado',
-  offline: 'Dormindo ou acordando (plano grátis): tente de novo em 1 minuto',
+  open: 'Conectado (API oficial)',
+  offline: 'Erro ao falar com a Meta (token ou número)',
   unconfigured: 'Não configurado no servidor',
 }
 
-/** Superadmin: chatbot de cobrança pelo WhatsApp de um admin (Evolution API, não oficial). */
+const TEMPLATE_LABEL: Record<string, string> = {
+  APPROVED: 'aprovado',
+  PENDING: 'em análise',
+  REJECTED: 'recusado',
+  PAUSED: 'pausado',
+  DISABLED: 'desativado',
+  'NÃO CRIADO': 'não criado',
+}
+
+/** Superadmin: chatbot de cobrança pelo WhatsApp oficial (WhatsApp Business Platform da Meta). */
 function ChatbotSection() {
-  const status = useChatbotStatus()
-  const { connect, disconnect, save } = useChatbotAdmin()
-  const [qr, setQr] = useState<string | null>(null)
+  const status = useChatbotStatus(true, true)
+  const { save } = useChatbotAdmin()
   const [limit, setLimit] = useState<number | null>(null)
   const s = status.data
-  // enquanto o QR está na tela, confere a cada 3 s se o celular já leu
-  useEffect(() => {
-    if (!qr) return
-    const id = setInterval(async () => {
-      const r = await status.refetch()
-      if (r.data?.state === 'open') setQr(null)
-    }, 3000)
-    return () => clearInterval(id)
-  }, [qr, status])
   if (!s) return <Card className="p-4"><Spinner /></Card>
-  const err = connect.error ?? disconnect.error ?? save.error
   const dailyLimit = limit ?? s.daily_limit
   const apply = (enabled: boolean) => save.mutate({ enabled, daily_limit: dailyLimit, owner_user_id: s.owner_user_id })
+  const templates = Object.entries(s.info?.templates ?? {})
+  const ready = s.state === 'open' && templates.length > 0 && templates.every(([, st]) => st === 'APPROVED')
 
   return (
     <Card className="p-4">
       <h2 className="mb-1 font-display text-xl font-bold">Chatbot de cobrança</h2>
       <p className="mb-3 text-sm text-muted">
-        Envia as cobranças e responde os jogadores (Pix copia e cola, "já paguei", "não vou jogar", falar com o gestor) pelo WhatsApp
-        do administrador conectado. A mensagem é a mesma configurada em "Mensagem de cobrança".
+        Envia as cobranças pelo WhatsApp oficial da pelada e responde os jogadores (Pix copia e cola, "já paguei", "não vou jogar",
+        falar com o gestor). Nada é enviado sem um administrador disparar. Custo da Meta: cerca de R$ 0,04 por cobrança.
       </p>
-      <div className="mb-3"><Alert>
-        Conexão <strong>não oficial</strong> (como o WhatsApp Web): o WhatsApp pode <strong>bloquear o número</strong>. O chatbot envia com
-        intervalo de 25 a 60 s, só para quem aceitou WhatsApp, no máximo 1 cobrança a cada 3 dias por jogador e até o limite diário.
-      </Alert></div>
-      {err && <div className="mb-3"><Alert>{err instanceof ApiError ? err.message : 'Erro'}</Alert></div>}
+      {save.error && <div className="mb-3"><Alert>{save.error instanceof ApiError ? save.error.message : 'Erro'}</Alert></div>}
       <dl className="mb-3 grid gap-2 text-sm sm:grid-cols-2">
-        <div><dt className="text-muted">WhatsApp</dt><dd className="font-medium">{STATE_LABEL[s.state] ?? s.state}{s.owner_name && s.state === 'open' ? ` (${s.owner_name})` : ''}</dd></div>
+        <div><dt className="text-muted">WhatsApp</dt><dd className="font-medium">{STATE_LABEL[s.state] ?? s.state}{s.info?.number ? ` · ${s.info.number}` : ''}{s.info?.name ? ` (${s.info.name})` : ''}</dd></div>
         <div><dt className="text-muted">Chatbot</dt><dd className="font-medium">{s.enabled ? 'Ligado' : 'Desligado'} · {s.charges_today} cobrança(s) nas últimas 24 h · {s.pending} na fila</dd></div>
-      </dl>
-      {qr && (
-        <div className="mb-3 rounded-btn border border-line p-3 text-center">
-          <img src={qr} alt="QR Code para conectar o WhatsApp" className="mx-auto h-56 w-56 bg-white p-2" />
-          <p className="mt-2 text-sm text-muted">No celular do administrador: WhatsApp → Aparelhos conectados → Conectar um aparelho → aponte para o QR Code.</p>
+        <div><dt className="text-muted">Assina como</dt><dd className="font-medium">{s.owner_name ?? 'quem ligar o chatbot'}</dd></div>
+        <div>
+          <dt className="text-muted">Modelos na Meta</dt>
+          <dd className="font-medium">
+            {templates.length ? templates.map(([name, st]) => `${name}: ${TEMPLATE_LABEL[st] ?? st}`).join(' · ') : '—'}
+            {s.info?.quality && <span className="ml-1 text-xs text-muted">(qualidade do número: {s.info.quality})</span>}
+          </dd>
         </div>
+      </dl>
+      {s.info?.error && <div className="mb-3"><Alert>{s.info.error}</Alert></div>}
+      {s.state === 'open' && !ready && (
+        <div className="mb-3"><Alert kind="info">As cobranças só funcionam depois que a Meta aprovar os modelos de mensagem.</Alert></div>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        {s.state !== 'open' ? (
-          <Button type="button" loading={connect.isPending} disabled={s.state === 'unconfigured'} onClick={() => connect.mutate(undefined, { onSuccess: (r) => setQr(r.qr) })}>
-            Conectar WhatsApp
-          </Button>
-        ) : (
-          <Button type="button" variant="secondary" loading={disconnect.isPending} onClick={() => confirm('Desconectar o WhatsApp do chatbot?') && disconnect.mutate()}>
-            Desconectar
-          </Button>
-        )}
-        <Button type="button" variant={s.enabled ? 'secondary' : 'primary'} loading={save.isPending} onClick={() => apply(!s.enabled)}>
+        <Button type="button" variant={s.enabled ? 'secondary' : 'primary'} loading={save.isPending} disabled={!s.enabled && s.state !== 'open'} onClick={() => apply(!s.enabled)}>
           {s.enabled ? 'Pausar chatbot' : 'Ligar chatbot'}
         </Button>
         <Field label="Limite de cobranças por dia">

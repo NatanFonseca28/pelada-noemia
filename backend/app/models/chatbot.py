@@ -17,7 +17,10 @@ class WhatsAppOutbox(Base):
     player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"), nullable=True,
                                                   index=True)
     phone: Mapped[str] = mapped_column(String(20))
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(Text)  # texto exibido no painel (e enviado, quando não é modelo)
+    # modelo aprovado pela Meta: {"template": nome, "params": [...], "buttons": [...]}; None = texto livre
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)  # wamid devolvido pela Meta
     kind: Mapped[str] = mapped_column(String(12))  # COBRANCA | MENU | RESPOSTA
     status: Mapped[str] = mapped_column(String(10), default="PENDENTE", index=True)  # PENDENTE | ENVIADA | ERRO
     attempts: Mapped[int] = mapped_column(SmallInteger, default=0)

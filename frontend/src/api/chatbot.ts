@@ -3,13 +3,15 @@ import { api, json } from './client'
 
 export interface ChatbotStatus {
   enabled: boolean
-  /** open = conectado; connecting; close/missing = desconectado; offline = Evolution API fora; unconfigured */
+  /** open = API oficial respondendo; offline = falha na Meta (token/número); unconfigured = sem credenciais */
   state: string
   daily_limit: number
   charges_today: number
   pending: number
   owner_user_id: number | null
   owner_name: string | null
+  /** só com details: número da pelada, nome verificado, qualidade e status dos modelos na Meta */
+  info?: { number?: string; name?: string; quality?: string; templates?: Record<string, string>; error?: string } | null
 }
 
 export interface ChargeReply {
@@ -33,10 +35,10 @@ const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
 }
 
 /** Status do chatbot; enquanto há fila, atualiza a cada 5 s para mostrar o progresso. */
-export function useChatbotStatus(enabled = true) {
+export function useChatbotStatus(enabled = true, details = false) {
   return useQuery({
-    queryKey: ['chatbot', 'status'],
-    queryFn: () => api<ChatbotStatus>('/chatbot/status'),
+    queryKey: ['chatbot', 'status', details],
+    queryFn: () => api<ChatbotStatus>(`/chatbot/status${details ? '?details=true' : ''}`),
     enabled,
     refetchInterval: (q) => ((q.state.data?.pending ?? 0) > 0 ? 5_000 : false),
   })
@@ -78,8 +80,6 @@ export function useChatbotAdmin() {
   const qc = useQueryClient()
   const done = () => qc.invalidateQueries({ queryKey: ['chatbot'] })
   return {
-    connect: useMutation({ mutationFn: () => api<ChatbotStatus & { qr: string | null }>('/chatbot/connect', { method: 'POST' }), onSuccess: done }),
-    disconnect: useMutation({ mutationFn: () => api<ChatbotStatus>('/chatbot/disconnect', { method: 'POST' }), onSuccess: done }),
     save: useMutation({
       mutationFn: (data: { enabled: boolean; daily_limit: number; owner_user_id: number | null }) =>
         api<ChatbotStatus>('/chatbot/settings', { method: 'PUT', body: json(data) }),

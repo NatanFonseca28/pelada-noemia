@@ -1,5 +1,7 @@
-"""Chatbot de cobrança com um WhatsApp falso (sem Evolution API nem rede)."""
-import base64
+"""Chatbot de cobrança na API oficial da Meta, com um WhatsApp falso (sem rede)."""
+import hashlib
+import hmac
+import json
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
@@ -8,76 +10,82 @@ from PIL import Image
 
 from app.core.config import get_settings
 from app.domain.delinquency import reference_months
-from app.services import chatbot_service
 from app.services.chatbot_service import ChatbotService
 from app.services.finance_service import today_local
 from app.services.whatsapp_gateway import set_gateway
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-SECRET = "segredo-teste"
+APP_SECRET = "segredo-do-app"
+OWN = "5521999990000"  # número da pelada
+
+
+def png() -> bytes:
+    out = BytesIO()
+    Image.new("RGB", (40, 40), "green").save(out, format="PNG")
+    return out.getvalue()
 
 
 class FakeWhatsApp:
     def __init__(self):
-        self.sent: list[tuple[str, str]] = []
-        self.connected = "open"
+        self.sent: list[dict] = []
+        self.n = 0
 
-    async def send_text(self, number, text, typing_ms=1500):
-        self.sent.append((number, text))
+    async def _id(self):
+        self.n += 1
+        return f"wamid.{self.n}"
+
+    async def send_text(self, number, text):
+        self.sent.append({"to": number, "text": text})
+        return await self._id()
+
+    async def send_template(self, number, name, params, buttons=None):
+        self.sent.append({"to": number, "template": name, "params": params, "buttons": buttons})
+        return await self._id()
 
     async def state(self):
-        return self.connected
+        return "open"
 
-    async def connect(self, webhook_url):
-        self.webhook_url = webhook_url
-        return "data:image/png;base64,QR"
+    async def info(self):
+        return {"number": "+55 21 99999-0000", "name": "Pelada", "quality": "GREEN",
+                "templates": {"cobranca_mensalidade": "APPROVED", "pagamento_confirmado": "APPROVED"}}
 
-    async def logout(self):
-        self.connected = "close"
+    async def download_media(self, media_id):
+        return png(), "image/png"
+
+    async def owner_number(self):
+        return OWN
 
 
 @pytest.fixture
 def wa(monkeypatch):
     fake = FakeWhatsApp()
     set_gateway(fake)
-    monkeypatch.setattr(get_settings(), "whatsapp_webhook_secret", SECRET)
-    monkeypatch.setattr(get_settings(), "chatbot_webhook_base", "https://api.teste/api")
-    monkeypatch.setattr(chatbot_service, "_next_charge_at", None)
+    monkeypatch.setattr(get_settings(), "meta_app_secret", APP_SECRET)
+    monkeypatch.setattr(get_settings(), "meta_verify_token", "verifica")
     yield fake
     set_gateway(None)
 
 
-def png_b64() -> str:
-    out = BytesIO()
-    Image.new("RGB", (40, 40), "green").save(out, format="PNG")
-    return base64.b64encode(out.getvalue()).decode()
+def event(frm, msg_id, ts=None, **message):
+    msg = {"from": frm, "id": msg_id, "timestamp": str(ts or int(datetime.now(UTC).timestamp())), **message}
+    return {"object": "whatsapp_business_account",
+            "entry": [{"id": "WABA", "changes": [{"field": "messages", "value": {"messages": [msg]}}]}]}
 
 
-def inbound(phone_digits, text=None, image=False, msg_id="m1"):
-    message = {"conversation": text} if text is not None else {}
-    if image:
-        message = {"imageMessage": {"caption": text or ""}, "base64": png_b64()}
-    return {"event": "messages.upsert", "instance": "pelada",
-            "data": {"key": {"remoteJid": f"{phone_digits}@s.whatsapp.net", "fromMe": False, "id": msg_id},
-                     "message": message}}
+async def post_event(client, payload, secret=APP_SECRET):
+    body = json.dumps(payload).encode()
+    sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return await client.post("/api/chatbot/webhook", content=body,
+                             headers={"X-Hub-Signature-256": sig, "Content-Type": "application/json"})
 
 
 async def drain(session_factory, clock=None):
-    """Envia toda a fila, avançando o relógio para pular o intervalo entre cobranças."""
-    t = clock or datetime.now(UTC)
-    for _ in range(50):
-        async with session_factory() as s:
-            sent = await ChatbotService(s, clock=lambda: t).process_outbox(max_items=10)
-        if not sent:
-            t += timedelta(seconds=61)
-            async with session_factory() as s:
-                sent = await ChatbotService(s, clock=lambda: t).process_outbox(max_items=10)
-            if not sent:
-                return
+    async with session_factory() as s:
+        await ChatbotService(s, clock=clock or (lambda: datetime.now(UTC))).process_outbox(max_items=50)
 
 
-async def test_chatbot_cobra_responde_e_admin_confirma(client, admin_headers, superadmin_headers, session_factory, wa):
+async def test_chatbot_oficial_fluxo_completo(client, admin_headers, superadmin_headers, session_factory, wa):
     prev, cur = reference_months(today_local())
 
     async def player(name, phone, opt_in=True):
@@ -86,117 +94,113 @@ async def test_chatbot_cobra_responde_e_admin_confirma(client, admin_headers, su
             "whatsapp_opt_in": opt_in}, headers=admin_headers)).json()["id"]
 
     deve = await player("Deve Tudo", "21987650001")
-    sem_ok = await player("Sem Aceite", "21987650002", opt_in=False)
+    await player("Sem Aceite", "21987650002", opt_in=False)
+    pelada = await player("Numero Da Pelada", "21999990000")
     em_dia = await player("Em Dia", "21987650003")
     for m in (prev, cur):
         await client.put("/api/finance/fees", json={"player_id": em_dia, "month": m.isoformat(), "amount": "50"},
                          headers=admin_headers)
-    await client.put("/api/finance/charge-message", json={"message": "Oi {nome}, {meses}: {valor}. {gestor}",
-                                                           "pix_key": "pix@pelada"}, headers=superadmin_headers)
+    await client.put("/api/finance/charge-message", json={"message": "Oi {nome}", "pix_key": "pix@pelada"},
+                     headers=superadmin_headers)
 
-    # desligado: não cobra
+    # verificação do webhook (painel da Meta)
+    r = await client.get("/api/chatbot/webhook", params={"hub.mode": "subscribe", "hub.verify_token": "verifica",
+                                                         "hub.challenge": "123"})
+    assert r.status_code == 200 and r.text == "123"
+    r = await client.get("/api/chatbot/webhook", params={"hub.mode": "subscribe", "hub.verify_token": "x",
+                                                         "hub.challenge": "123"})
+    assert r.status_code == 403
+
     r = await client.post("/api/chatbot/charge-all", headers=admin_headers)
     assert r.status_code == 422 and "desligado" in r.json()["detail"]
-    # superadmin conecta (vira dono do número) e liga
-    c = (await client.post("/api/chatbot/connect", headers=superadmin_headers)).json()
-    assert c["qr"].startswith("data:image") and wa.webhook_url.endswith(f"/chatbot/webhook/{SECRET}")
-    owner = c["owner_user_id"]
-    assert (await client.put("/api/chatbot/settings", json={"enabled": True, "daily_limit": 40,
-                                                           "owner_user_id": owner},
-                             headers=superadmin_headers)).status_code == 200
     assert (await client.put("/api/chatbot/settings", json={"enabled": True, "daily_limit": 40},
                              headers=admin_headers)).status_code == 403
+    st = (await client.put("/api/chatbot/settings", json={"enabled": True, "daily_limit": 40},
+                           headers=superadmin_headers)).json()
+    assert st["enabled"] and st["owner_name"]  # quem liga vira o {gestor}
+    det = (await client.get("/api/chatbot/status", params={"details": True}, headers=admin_headers)).json()
+    assert det["info"]["templates"]["cobranca_mensalidade"] == "APPROVED"
 
     res = (await client.post("/api/chatbot/charge-all", headers=admin_headers)).json()
     assert "Deve Tudo" in res["queued"] and "Em Dia" not in res["queued"]
     assert {"name": "Sem Aceite", "reason": "não aceitou WhatsApp"} in res["skipped"]
+    assert {"name": "Numero Da Pelada", "reason": "é o número do WhatsApp da pelada"} in res["skipped"]
+    r = await client.post(f"/api/chatbot/charge/{pelada}", json={"force": True}, headers=admin_headers)
+    assert r.status_code == 422 and "mesmo número" in r.json()["detail"]
     await drain(session_factory)
-    texts = [t for n, t in wa.sent if n == "5521987650001"]
-    assert texts[0].startswith("Oi Deve Tudo") and "R$ 100,00" in texts[0]
-    assert texts[1].startswith("Responda com o número:")
-    assert all(n != "5521987650002" for n, _ in wa.sent)
-    # cobrar de novo dentro de 3 dias: pula (individual dá 409, a não ser com force)
-    r = await client.post(f"/api/chatbot/charge/{deve}", json={}, headers=admin_headers)
-    assert r.status_code == 409
-    assert (await client.post(f"/api/chatbot/charge/{deve}", json={"force": True},
-                              headers=admin_headers)).status_code == 200
-    await drain(session_factory)
-    # a auditoria "charge" continua alimentando "Última cobrança"
-    lst = {d["name"]: d for d in (await client.get("/api/finance/to-charge", headers=admin_headers)).json()}
-    assert lst["Deve Tudo"]["last_charged_at"] is not None
+    tpl = next(m for m in wa.sent if m["to"] == "5521987650001")
+    assert tpl["template"] == "cobranca_mensalidade" and tpl["buttons"] == ["PIX", "PAGO", "FORA", "FALAR"]
+    assert tpl["params"][0] == "Deve Tudo" and tpl["params"][3] == "R$ 100,00" and tpl["params"][4] == "pix@pelada"
+    assert (await client.post(f"/api/chatbot/charge/{deve}", json={}, headers=admin_headers)).status_code == 409
 
-    # webhook: sem segredo certo = 404; número desconhecido é ignorado
-    assert (await client.post("/api/chatbot/webhook/errado", json=inbound("5521987650001", "1"))).status_code == 404
-    r = await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521900000000", "1"))
-    assert r.json()["result"] == "ignorado"
+    # assinatura errada = 403; número desconhecido = ignorado
+    r = await post_event(client, event("5521987650001", "x", type="text", text={"body": "1"}), secret="errado")
+    assert r.status_code == 403
+    r = await post_event(client, event("5521900000000", "y", type="text", text={"body": "1"}))
+    assert r.json()["results"] == ["ignorado"]
 
     wa.sent.clear()
-    # 1 = Pix copia e cola (WhatsApp antigo sem o 9 também é reconhecido)
-    r = await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("552187650001", "1", msg_id="a"))
-    assert r.json()["result"] == "PIX"
+    # botão "Pix copia e cola" (WhatsApp antigo sem o 9 também é reconhecido)
+    r = await post_event(client, event("552187650001", "a", type="button",
+                                       button={"payload": "PIX", "text": "Pix copia e cola"}))
+    assert r.json()["results"] == ["PIX"]
     await drain(session_factory)
-    assert any("Chave: pix@pelada" in t for _, t in wa.sent)
-    assert any(t.startswith("000201") and "br.gov.bcb.pix" in t for _, t in wa.sent)
+    assert any("Chave: pix@pelada" in m.get("text", "") for m in wa.sent)
+    assert any(m.get("text", "").startswith("000201") for m in wa.sent)
 
-    # 2 + comprovante = pedido de baixa com imagem; admin confirma e o mês vira pago
-    await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521987650001", "2", msg_id="b"))
-    await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521987650001", image=True, msg_id="c"))
+    # "Já paguei" + foto = pedido com comprovante baixado da Meta; admin confirma
+    await post_event(client, event("5521987650001", "b", type="button", button={"payload": "PAGO"}))
+    await post_event(client, event("5521987650001", "c", type="image", image={"id": "MEDIA1"}))
     replies = (await client.get("/api/chatbot/replies", headers=admin_headers)).json()
     pago = next(x for x in replies if x["kind"] == "PAGO")
-    assert pago["media_url"].startswith("/api/media/comprovantes/") and pago["amount"] == "100.00"
+    assert pago["media_url"].startswith("/api/media/comprovantes/")
     assert (await client.post(f"/api/chatbot/replies/{pago['id']}/confirm", headers=admin_headers)).status_code == 204
-    lst = {d["name"] for d in (await client.get("/api/finance/to-charge", headers=admin_headers)).json()}
-    assert "Deve Tudo" not in lst
+    assert "Deve Tudo" not in {d["name"] for d in (await client.get("/api/finance/to-charge",
+                                                                     headers=admin_headers)).json()}
+    wa.sent.clear()
     await drain(session_factory)
-    assert any(t.startswith("Pagamento confirmado") for _, t in wa.sent)
+    assert wa.sent[-1]["text"].startswith("Pagamento confirmado")  # dentro de 24 h: texto livre
 
-    # 3 = pedido de "F" (mês atual); 4 = falar com o gestor
-    await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521987650001", "3", msg_id="d"))
-    await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521987650001", "4", msg_id="e"))
-    kinds = {x["kind"]: x for x in (await client.get("/api/chatbot/replies", headers=admin_headers)).json()}
-    assert set(kinds) == {"FORA", "FALAR"}
-    # já pago no mês atual: aprovar "F" não apaga o pagamento
-    await client.post(f"/api/chatbot/replies/{kinds['FORA']['id']}/confirm", headers=admin_headers)
-    ov = (await client.get("/api/finance/overview", params={"year": cur.year}, headers=admin_headers)).json()
-    row = next(r for r in ov["rows"] if r["player_id"] == deve)
-    assert row["cells"][cur.strftime("%Y-%m")]["amount"] == "50.00"
-    assert (await client.post(f"/api/chatbot/replies/{kinds['FALAR']['id']}/reject",
-                              headers=admin_headers)).status_code == 204
-    assert (await client.get("/api/chatbot/replies", headers=admin_headers)).json() == []
+    # digitado "3" e botão "Falar"
+    await post_event(client, event("5521987650001", "d", type="text", text={"body": "3"}))
+    await post_event(client, event("5521987650001", "e", type="interactive",
+                                   interactive={"type": "button_reply", "button_reply": {"id": "FALAR"}}))
+    kinds = {x["kind"] for x in (await client.get("/api/chatbot/replies", headers=admin_headers)).json()}
+    assert kinds == {"FORA", "FALAR"}
 
-    # repetição da mesma mensagem (reenvio do webhook) não duplica
-    r = await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521987650001", "4", msg_id="e"))
-    assert r.json()["result"] == "repetido"
-    # reentrega de mensagem antiga ao acordar (plano grátis): ignorada pelo horário
-    now = int(datetime.now(UTC).timestamp())
-    novo = inbound("5521987650001", "4", msg_id="f")
-    novo["data"]["messageTimestamp"] = now
-    assert (await client.post(f"/api/chatbot/webhook/{SECRET}", json=novo)).json()["result"] == "TALK"
-    velho = inbound("5521987650001", "3", msg_id="g")
-    velho["data"]["messageTimestamp"] = {"low": now - 30}
-    assert (await client.post(f"/api/chatbot/webhook/{SECRET}", json=velho)).json()["result"] == "repetido"
-    falar = next(x for x in (await client.get("/api/chatbot/replies", headers=admin_headers)).json())
-    await client.post(f"/api/chatbot/replies/{falar['id']}/reject", headers=admin_headers)
+    # repetição e reentrega antiga não duplicam
+    r = await post_event(client, event("5521987650001", "e", type="text", text={"body": "4"}))
+    assert r.json()["results"] == ["repetido"]
+    old = int(datetime.now(UTC).timestamp()) - 3600
+    r = await post_event(client, event("5521987650001", "z", ts=old, type="text", text={"body": "4"}))
+    assert r.json()["results"] == ["repetido"]
 
-    await drain(session_factory)
-    status = (await client.get("/api/chatbot/status", headers=admin_headers)).json()
-    assert status["enabled"] and status["state"] == "open" and status["pending"] == 0
+    # falha de entrega informada pela Meta aparece na fila
+    async with session_factory() as s:
+        from sqlalchemy import select
+
+        from app.models.chatbot import WhatsAppOutbox
+        first = await s.scalar(select(WhatsAppOutbox).where(WhatsAppOutbox.kind == "COBRANCA"))
+    status_evt = {"entry": [{"changes": [{"value": {"statuses": [{
+        "id": first.message_id, "status": "failed", "errors": [{"code": 131026, "title": "Message undeliverable"}]}]}}]}]}
+    await post_event(client, status_evt)
+    queue = (await client.get("/api/chatbot/queue", headers=admin_headers)).json()
+    assert any(q["status"] == "ERRO" and "131026" in (q["error"] or "") for q in queue)
 
 
-async def test_intervalo_entre_cobrancas(client, admin_headers, superadmin_headers, session_factory, wa):
-    """Duas cobranças seguidas: a 2ª só sai depois do intervalo aleatório (25–60 s)."""
-    for i in range(2):
-        await client.post("/api/players", json={"name": f"Gap {i}", "type": "MENSALISTA", "primary_position": "ALA",
-                                                "phone": f"2198765100{i}", "whatsapp_opt_in": True},
-                          headers=admin_headers)
-    await client.post("/api/chatbot/connect", headers=superadmin_headers)
+async def test_confirmacao_fora_da_janela_usa_modelo(client, admin_headers, superadmin_headers, session_factory, wa):
+    pid = (await client.post("/api/players", json={"name": "Janela", "type": "MENSALISTA", "primary_position": "ALA",
+                                                   "phone": "21987651111", "whatsapp_opt_in": True},
+                             headers=admin_headers)).json()["id"]
     await client.put("/api/chatbot/settings", json={"enabled": True, "daily_limit": 40}, headers=superadmin_headers)
-    await client.post("/api/chatbot/charge-all", headers=admin_headers)
-    t0 = datetime.now(UTC)
-    async with session_factory() as s:
-        sent = await ChatbotService(s, clock=lambda: t0).process_outbox(max_items=10)
-    assert sent == 2  # 1ª cobrança + o menu; a próxima cobrança espera
-    async with session_factory() as s:
-        assert await ChatbotService(s, clock=lambda: t0 + timedelta(seconds=10)).process_outbox(10) == 0
-    async with session_factory() as s:
-        assert await ChatbotService(s, clock=lambda: t0 + timedelta(seconds=61)).process_outbox(10) >= 1
+    await client.post(f"/api/chatbot/charge/{pid}", json={}, headers=admin_headers)
+    await drain(session_factory)
+    old = int((datetime.now(UTC) - timedelta(hours=30)).timestamp())
+    await post_event(client, event("5521987651111", "j1", ts=old, type="button", button={"payload": "PAGO"}))
+    reply = next(x for x in (await client.get("/api/chatbot/replies", headers=admin_headers)).json()
+                 if x["player_id"] == pid)
+    await client.post(f"/api/chatbot/replies/{reply['id']}/confirm", headers=admin_headers)
+    wa.sent.clear()
+    await drain(session_factory)
+    confirm = next(m for m in wa.sent if m["to"] == "5521987651111" and "template" in m)
+    assert confirm["template"] == "pagamento_confirmado"

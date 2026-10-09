@@ -3,7 +3,17 @@ from decimal import Decimal
 
 import pytest
 
-from app.domain.chatbot import Intent, charge_values, jid_digits, months_text, parse_reply, phone_variants, render
+from app.domain.chatbot import (
+    TEMPLATES,
+    Intent,
+    charge_values,
+    months_text,
+    parse_reply,
+    payload_intent,
+    phone_variants,
+    render,
+    template_definition,
+)
 from app.domain.charge_message import DEFAULT_CHARGE_MESSAGE
 from app.domain.pix import crc16, pix_copy_paste
 
@@ -43,5 +53,21 @@ def test_telefone_com_e_sem_o_nove():
     assert phone_variants("+5521987654321") == {"5521987654321", "552187654321"}
     assert phone_variants("+552187654321") == {"552187654321", "5521987654321"}
     assert phone_variants("+552133334444") == {"552133334444"}  # fixo: sem variação
-    assert jid_digits("5521987654321@s.whatsapp.net") == "5521987654321"
-    assert jid_digits("120363000000@g.us") is None and jid_digits(None) is None
+
+
+def test_botoes_do_modelo():
+    assert payload_intent("PIX") == Intent.PIX and payload_intent("pago") == Intent.PAID
+    assert payload_intent("FORA") == Intent.OUT and payload_intent("FALAR") == Intent.TALK
+    assert payload_intent("outro") is None and payload_intent(None) is None
+
+
+def test_modelo_de_cobranca_igual_a_mensagem_padrao():
+    charge = next(t for t in TEMPLATES if t["name"] == "cobranca_mensalidade")
+    as_template = DEFAULT_CHARGE_MESSAGE
+    for i, var in enumerate(["nome", "gestor", "meses", "valor", "pix"], start=1):
+        as_template = as_template.replace("{" + var + "}", "{{" + str(i) + "}}")
+    assert charge["body"] == as_template
+    d = template_definition(charge)
+    assert d["category"] == "UTILITY" and d["language"] == "pt_BR"
+    assert [b["text"] for b in d["components"][1]["buttons"]] == charge["buttons"]
+    assert len(d["components"][0]["example"]["body_text"][0]) == 5

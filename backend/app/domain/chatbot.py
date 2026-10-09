@@ -10,11 +10,12 @@ from enum import StrEnum
 
 MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
-# Envio: intervalo aleatório entre mensagens e limites anti-bloqueio
-MIN_GAP_SECONDS = 25
-MAX_GAP_SECONDS = 60
-CHARGE_COOLDOWN_DAYS = 3
+CHARGE_COOLDOWN_DAYS = 3  # no máximo 1 cobrança a cada 3 dias por jogador
 MENU_RESEND_HOURS = 24
+SESSION_WINDOW_HOURS = 24  # Meta: texto livre só até 24 h depois da última mensagem do jogador
+
+# Botões de resposta rápida do modelo de cobrança (payload → intenção), na ordem do modelo
+BUTTONS = ["PIX", "PAGO", "FORA", "FALAR"]
 
 
 class Intent(StrEnum):
@@ -63,6 +64,17 @@ def menu_text(gestor: str) -> str:
     )
 
 
+def payload_intent(payload: str | None) -> "Intent | None":
+    """Botão do modelo (payload) ou botão interativo (id)."""
+    return {"PIX": Intent.PIX, "PAGO": Intent.PAID, "FORA": Intent.OUT, "FALAR": Intent.TALK}.get(
+        (payload or "").strip().upper())
+
+
+def template_params(values: dict[str, str]) -> list[str]:
+    """Parâmetros do modelo de cobrança, na ordem {{1}}..{{5}}: nome, gestor, meses, valor, pix."""
+    return [values["nome"], values["gestor"], values["meses"], values["valor"], values["pix"]]
+
+
 def _plain(text: str) -> str:
     return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower().strip()
 
@@ -98,8 +110,30 @@ def phone_variants(e164: str) -> set[str]:
     return out
 
 
-def jid_digits(jid: str | None) -> str | None:
-    """'5521987654321@s.whatsapp.net' → '5521987654321'. Grupos e listas de transmissão → None."""
-    if not jid or not jid.endswith("@s.whatsapp.net"):
-        return None
-    return jid.split("@", 1)[0].split(":", 1)[0]
+# Modelos enviados à Meta para aprovação (categoria utilidade). O texto da cobrança é o mesmo da mensagem manual.
+TEMPLATES = [
+    {
+        "name": "cobranca_mensalidade",
+        "category": "UTILITY",
+        "body": ("Fala, {{1}}! Aqui é o {{2}}, da pelada de quarta. Passando pra lembrar da mensalidade: "
+                 "{{3}} em aberto, total de {{4}}. Pix: {{5}}. Valeu! ⚽"),
+        "example": ["Daniel", "Natan", "set e out", "R$ 100,00", "pix@pelada.com"],
+        "buttons": ["Pix copia e cola", "Já paguei", "Não vou jogar", "Falar com o gestor"],
+    },
+    {
+        "name": "pagamento_confirmado",
+        "category": "UTILITY",
+        "body": "Pagamento da mensalidade confirmado ✅ ({{1}}). Valeu!",
+        "example": ["set e out"],
+        "buttons": [],
+    },
+]
+
+
+def template_definition(t: dict, language: str = "pt_BR") -> dict:
+    """Corpo da criação do modelo na API da Meta (POST /{waba_id}/message_templates)."""
+    components: list[dict] = [{"type": "BODY", "text": t["body"], "example": {"body_text": [t["example"]]}}]
+    if t["buttons"]:
+        components.append({"type": "BUTTONS",
+                           "buttons": [{"type": "QUICK_REPLY", "text": b} for b in t["buttons"]]})
+    return {"name": t["name"], "language": language, "category": t["category"], "components": components}

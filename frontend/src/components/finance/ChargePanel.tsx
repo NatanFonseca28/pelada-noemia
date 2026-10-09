@@ -135,14 +135,11 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
   const toast = useToast()
   if (count === 0) return null
   // chatbot ligado e conectado: as cobranças saem pelo WhatsApp do dono do número, com fila e respostas automáticas
-  // "offline" = servidor do WhatsApp dormindo (plano grátis): a cobrança entra na fila e sai quando ele acordar
-  const bot = !!botStatus?.enabled && (botStatus.state === 'open' || botStatus.state === 'offline')
-  const sleeping = botStatus?.state === 'offline'
+  const bot = !!botStatus?.enabled && botStatus.state === 'open'
   const botReady = data?.filter((d) => d.phone && d.whatsapp_opt_in).length ?? 0
 
   const chargeAllByBot = () => {
-    const minutes = Math.max(1, Math.round((botReady * 45) / 60))
-    if (!confirm(`Cobrar ${botReady} pelo chatbot? As mensagens saem uma a uma, com intervalo (cerca de ${minutes} min).`)) return
+    if (!confirm(`Cobrar ${botReady} pelo chatbot (WhatsApp oficial da pelada)?`)) return
     botCharge.mutate({}, {
       onSuccess: (r) => toast({
         message: `${r.queued.length} cobrança(s) na fila${r.skipped.length ? `; ${r.skipped.length} pulada(s): ${r.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}` : ''}`,
@@ -204,14 +201,13 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
             </div>
             {bot ? (
               <p className="px-2 pb-1 text-xs text-muted">
-                O chatbot envia do WhatsApp de {botStatus?.owner_name?.split(' ')[0] ?? 'gestor'}, uma mensagem por vez, e cuida das respostas.
-                {sleeping && <span className="ml-1">O servidor do WhatsApp está acordando: as mensagens saem em 1 a 2 minutos.</span>}
+                O chatbot envia pelo WhatsApp oficial da pelada, assinando como {botStatus?.owner_name?.split(' ')[0] ?? 'gestor'}, e cuida das respostas.
                 {(botStatus?.pending ?? 0) > 0 && <strong className="ml-1 text-ink">{botStatus?.pending} mensagem(ns) na fila…</strong>}
               </p>
             ) : (
               <p className="px-2 pb-1 text-xs text-muted">
                 A mensagem sai do WhatsApp deste aparelho, com a sua assinatura.
-                {botStatus?.enabled && <span className="ml-1 text-danger-ink">O chatbot está ligado, mas o WhatsApp dele está desconectado.</span>}
+                {botStatus?.enabled && <span className="ml-1 text-danger-ink">O chatbot está ligado, mas o WhatsApp oficial não está respondendo.</span>}
               </p>
             )}
             <ul>

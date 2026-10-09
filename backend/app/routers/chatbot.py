@@ -2,30 +2,30 @@ import hmac
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
 from app.core.deps import AdminUser, SessionDep, SuperAdminUser
-from app.core.errors import NotFoundError
+from app.core.errors import ForbiddenError
 from app.db.session import SessionLocal
 from app.services.chatbot_service import ChatbotService, kick
+from app.services.whatsapp_gateway import valid_signature
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot de cobrança"])
 
 
 class ChatbotStatus(BaseModel):
     enabled: bool
-    state: str  # open | connecting | close | missing | offline | unconfigured
+    state: str  # open (API oficial respondendo) | offline | unconfigured
     daily_limit: int
     charges_today: int
     pending: int
     owner_user_id: int | None
     owner_name: str | None
-
-
-class ConnectOut(ChatbotStatus):
-    qr: str | None  # QR Code (data URI) para escanear no WhatsApp do admin; None = já conectado
+    # número da pelada, nome verificado, qualidade e status dos modelos na Meta (só com ?details=true)
+    info: dict | None = None
 
 
 class ChatbotSettingsIn(BaseModel):
@@ -74,8 +74,8 @@ class ReplyOut(BaseModel):
 
 
 @router.get("/status", response_model=ChatbotStatus)
-async def status_(admin: AdminUser, session: SessionDep):
-    return await ChatbotService(session).status()
+async def status_(admin: AdminUser, session: SessionDep, details: bool = False):
+    return await ChatbotService(session).status(with_info=details)
 
 
 @router.put("/settings", response_model=ChatbotStatus)
@@ -83,19 +83,6 @@ async def update_settings(data: ChatbotSettingsIn, admin: SuperAdminUser, sessio
     service = ChatbotService(session)
     await service.update_settings(data.enabled, data.daily_limit, data.owner_user_id, admin)
     kick(SessionLocal)  # ao religar, envia o que ficou na fila
-    return await service.status()
-
-
-@router.post("/connect", response_model=ConnectOut)
-async def connect(admin: SuperAdminUser, session: SessionDep):
-    """Prepara a conexão e devolve o QR Code para o admin escanear em WhatsApp → Aparelhos conectados."""
-    return await ChatbotService(session).connect(admin)
-
-
-@router.post("/disconnect", response_model=ChatbotStatus)
-async def disconnect(admin: SuperAdminUser, session: SessionDep):
-    service = ChatbotService(session)
-    await service.disconnect(admin)
     return await service.status()
 
 
@@ -135,13 +122,25 @@ async def reject(reply_id: int, admin: AdminUser, session: SessionDep):
     await ChatbotService(session).resolve(reply_id, False, admin)
 
 
-@router.post("/webhook/{secret}", include_in_schema=False)
-async def webhook(secret: str, request: Request, session: SessionDep):
-    """Eventos da Evolution API (mensagens recebidas). O segredo na URL autentica a chamada."""
-    expected = get_settings().whatsapp_webhook_secret
-    if not expected or not hmac.compare_digest(secret, expected):
-        raise NotFoundError("Não encontrado")  # não revela que a rota existe
+@router.get("/webhook", include_in_schema=False)
+async def webhook_verify(mode: str = Query(alias="hub.mode", default=""),
+                         token: str = Query(alias="hub.verify_token", default=""),
+                         challenge: str = Query(alias="hub.challenge", default="")):
+    """Verificação do webhook no painel da Meta: devolve o desafio se o token conferir."""
+    expected = get_settings().meta_verify_token
+    if mode == "subscribe" and expected and hmac.compare_digest(token, expected):
+        return PlainTextResponse(challenge)
+    raise ForbiddenError("Token de verificação inválido")
+
+
+@router.post("/webhook", include_in_schema=False)
+async def webhook(request: Request, session: SessionDep):
+    """Mensagens e status de entrega da Meta. A assinatura (App Secret) autentica a chamada."""
+    secret = get_settings().meta_app_secret
+    body = await request.body()
+    if not secret or not valid_signature(body, request.headers.get("X-Hub-Signature-256"), secret):
+        raise ForbiddenError("Assinatura inválida")
     payload = await request.json()
-    result = await ChatbotService(session).handle_webhook(payload if isinstance(payload, dict) else {})
+    results = await ChatbotService(session).handle_webhook(payload if isinstance(payload, dict) else {})
     kick(SessionLocal)
-    return {"result": result}
+    return {"results": results}
