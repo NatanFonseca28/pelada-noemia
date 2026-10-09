@@ -35,6 +35,9 @@ const AccessLogPage = named(() => import('@/pages/gestao/AccessLogPage'), 'Acces
 const PageVisibilityPage = named(() => import('@/pages/gestao/PageVisibilityPage'), 'PageVisibilityPage')
 const ExportPage = named(() => import('@/pages/gestao/ExportPage'), 'ExportPage')
 const DesignSystemPage = lazy(() => import('@/pages/DesignSystemPage'))
+const PrivacyPage = named(() => import('@/pages/LegalPages'), 'PrivacyPage')
+const TermsPage = named(() => import('@/pages/LegalPages'), 'TermsPage')
+const DataDeletionPage = named(() => import('@/pages/LegalPages'), 'DataDeletionPage')
 
 export function App() {
   return (
@@ -43,6 +46,10 @@ export function App() {
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+      {/* públicas (sem login): exigidas pela Meta para o WhatsApp oficial */}
+      <Route path="/privacidade" element={<PrivacyPage />} />
+      <Route path="/termos" element={<TermsPage />} />
+      <Route path="/exclusao-de-dados" element={<DataDeletionPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />

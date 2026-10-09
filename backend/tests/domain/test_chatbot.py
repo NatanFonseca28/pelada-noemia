@@ -43,7 +43,7 @@ def test_texto_da_cobranca_igual_ao_do_front():
     ("1", False, Intent.PIX), (" 2 ", False, Intent.PAID), ("3", False, Intent.OUT), ("4 por favor", False, Intent.TALK),
     ("Já paguei!", False, Intent.PAID), ("fiz o pix ontem", False, Intent.PAID), ("manda a chave pix", False, Intent.PIX),
     ("Não vou jogar esse mês", False, Intent.OUT), ("quero falar com o gestor", False, Intent.TALK),
-    ("blz", False, Intent.OTHER), ("", True, Intent.PROOF), (None, False, Intent.OTHER), ("12345", False, Intent.OTHER),
+    ("blz", False, Intent.OTHER), ("Parar", False, Intent.STOP), ("parar de jogar?", False, Intent.OTHER), ("", True, Intent.PROOF), (None, False, Intent.OTHER), ("12345", False, Intent.OTHER),
 ])
 def test_interpreta_respostas(text, media, intent):
     assert parse_reply(text, media) == intent

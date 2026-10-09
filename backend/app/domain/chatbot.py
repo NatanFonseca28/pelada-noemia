@@ -24,6 +24,7 @@ class Intent(StrEnum):
     OUT = "OUT"
     TALK = "TALK"
     PROOF = "PROOF"  # mandou imagem/documento (comprovante)
+    STOP = "STOP"  # não quer mais receber cobranças pelo WhatsApp
     OTHER = "OTHER"
 
 
@@ -85,6 +86,8 @@ def parse_reply(text: str | None, has_media: bool = False) -> Intent:
     t = _plain(text or "")
     if not t:
         return Intent.OTHER
+    if re.fullmatch(r"(parar|pare|sair|stop|cancelar|descadastrar)[.! ]*", t):
+        return Intent.STOP
     first = re.match(r"^\s*([1-4])\b", t)
     if first:
         return {"1": Intent.PIX, "2": Intent.PAID, "3": Intent.OUT, "4": Intent.TALK}[first.group(1)]

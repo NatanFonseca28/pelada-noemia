@@ -274,7 +274,12 @@ class ChatbotService:
         gestor = await self.gestor()
         phone = player.phone
         note = text_ if kind == "text" else None
-        if intent == bot.Intent.PIX:
+        if intent == bot.Intent.STOP:
+            # LGPD/Meta: o jogador pode sair a qualquer momento; o admin passa a cobrar pelo próprio WhatsApp
+            player.whatsapp_opt_in = False
+            self._enqueue(player.id, phone, "Pronto, você não vai mais receber cobranças por aqui. "
+                                            f"Se mudar de ideia, fale com o {gestor}.", "RESPOSTA")
+        elif intent == bot.Intent.PIX:
             await self._send_pix(player, conv, gestor)
         elif intent in (bot.Intent.PAID, bot.Intent.PROOF):
             reply = await self._open_reply(player.id, "PAGO", conv, note=note)

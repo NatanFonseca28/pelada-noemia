@@ -175,6 +175,12 @@ async def test_chatbot_oficial_fluxo_completo(client, admin_headers, superadmin_
     r = await post_event(client, event("5521987650001", "z", ts=old, type="text", text={"body": "4"}))
     assert r.json()["results"] == ["repetido"]
 
+    # "parar": deixa de receber cobranças pelo WhatsApp
+    r = await post_event(client, event("5521987650001", "p1", type="text", text={"body": "parar"}))
+    assert r.json()["results"] == ["STOP"]
+    players = {p["id"]: p for p in (await client.get("/api/players", headers=admin_headers)).json()}
+    assert players[deve]["whatsapp_opt_in"] is False
+
     # falha de entrega informada pela Meta aparece na fila
     async with session_factory() as s:
         from sqlalchemy import select
