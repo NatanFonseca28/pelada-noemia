@@ -28,7 +28,7 @@ const STATE_LABEL: Record<string, string> = {
   connecting: 'Aguardando leitura do QR Code',
   close: 'Desconectado',
   missing: 'Ainda não conectado',
-  offline: 'Evolution API fora do ar',
+  offline: 'Dormindo ou acordando (plano grátis): tente de novo em 1 minuto',
   unconfigured: 'Não configurado no servidor',
 }
 

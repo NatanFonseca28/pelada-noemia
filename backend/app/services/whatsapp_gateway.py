@@ -27,7 +27,9 @@ class EvolutionGateway:
         self.key = api_key
         self.instance = instance
 
-    async def _call(self, method: str, path: str, body: dict | None = None, ok404: bool = False) -> dict:
+    async def _call(self, method: str, path: str, body: dict | None = None, ok404: bool = False,
+                    timeout: float = 90) -> dict:
+        # 90 s por padrão: no plano grátis do Render o serviço dorme e leva ~1 min para acordar
         def run() -> dict:
             req = urllib.request.Request(
                 f"{self.url}{path}", method=method,
@@ -35,7 +37,7 @@ class EvolutionGateway:
                 headers={"apikey": self.key, "Content-Type": "application/json"},
             )
             try:
-                with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310 — URL da própria infraestrutura
+                with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 — URL da própria infraestrutura
                     raw = r.read()
                     return json.loads(raw) if raw else {}
             except urllib.error.HTTPError as exc:
@@ -53,7 +55,8 @@ class EvolutionGateway:
                          {"number": number, "text": text, "delay": typing_ms})
 
     async def state(self) -> str:
-        data = await self._call("GET", f"/instance/connectionState/{self.instance}", ok404=True)
+        # consulta rápida (tela de status): se estiver dormindo, a chamada já serve para acordá-lo
+        data = await self._call("GET", f"/instance/connectionState/{self.instance}", ok404=True, timeout=12)
         if data.get("_missing"):
             return "missing"
         return (data.get("instance") or {}).get("state") or data.get("state") or "close"
@@ -61,7 +64,8 @@ class EvolutionGateway:
     async def connect(self, webhook_url: str) -> str | None:
         webhook = {"enabled": True, "url": webhook_url, "byEvents": False, "base64": True,
                    "events": ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]}
-        if await self.state() == "missing":
+        state = await self._call("GET", f"/instance/connectionState/{self.instance}", ok404=True)
+        if state.get("_missing"):
             await self._call("POST", "/instance/create", {
                 "instanceName": self.instance, "integration": "WHATSAPP-BAILEYS", "qrcode": True,
                 "webhook": webhook,

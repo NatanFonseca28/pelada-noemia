@@ -167,6 +167,16 @@ async def test_chatbot_cobra_responde_e_admin_confirma(client, admin_headers, su
     # repetição da mesma mensagem (reenvio do webhook) não duplica
     r = await client.post(f"/api/chatbot/webhook/{SECRET}", json=inbound("5521987650001", "4", msg_id="e"))
     assert r.json()["result"] == "repetido"
+    # reentrega de mensagem antiga ao acordar (plano grátis): ignorada pelo horário
+    now = int(datetime.now(UTC).timestamp())
+    novo = inbound("5521987650001", "4", msg_id="f")
+    novo["data"]["messageTimestamp"] = now
+    assert (await client.post(f"/api/chatbot/webhook/{SECRET}", json=novo)).json()["result"] == "TALK"
+    velho = inbound("5521987650001", "3", msg_id="g")
+    velho["data"]["messageTimestamp"] = {"low": now - 30}
+    assert (await client.post(f"/api/chatbot/webhook/{SECRET}", json=velho)).json()["result"] == "repetido"
+    falar = next(x for x in (await client.get("/api/chatbot/replies", headers=admin_headers)).json())
+    await client.post(f"/api/chatbot/replies/{falar['id']}/reject", headers=admin_headers)
 
     await drain(session_factory)
     status = (await client.get("/api/chatbot/status", headers=admin_headers)).json()

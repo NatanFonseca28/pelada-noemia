@@ -135,7 +135,9 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
   const toast = useToast()
   if (count === 0) return null
   // chatbot ligado e conectado: as cobranças saem pelo WhatsApp do dono do número, com fila e respostas automáticas
-  const bot = !!botStatus?.enabled && botStatus.state === 'open'
+  // "offline" = servidor do WhatsApp dormindo (plano grátis): a cobrança entra na fila e sai quando ele acordar
+  const bot = !!botStatus?.enabled && (botStatus.state === 'open' || botStatus.state === 'offline')
+  const sleeping = botStatus?.state === 'offline'
   const botReady = data?.filter((d) => d.phone && d.whatsapp_opt_in).length ?? 0
 
   const chargeAllByBot = () => {
@@ -203,6 +205,7 @@ export function ChargePanel({ count, monthlyFee }: { count: number; monthlyFee: 
             {bot ? (
               <p className="px-2 pb-1 text-xs text-muted">
                 O chatbot envia do WhatsApp de {botStatus?.owner_name?.split(' ')[0] ?? 'gestor'}, uma mensagem por vez, e cuida das respostas.
+                {sleeping && <span className="ml-1">O servidor do WhatsApp está acordando: as mensagens saem em 1 a 2 minutos.</span>}
                 {(botStatus?.pending ?? 0) > 0 && <strong className="ml-1 text-ink">{botStatus?.pending} mensagem(ns) na fila…</strong>}
               </p>
             ) : (

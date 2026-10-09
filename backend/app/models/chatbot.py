@@ -39,6 +39,7 @@ class ChargeConversation(Base):
     last_menu_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     awaiting_proof: Mapped[bool] = mapped_column(Boolean, default=False)
     last_message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_inbound_ts: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # epoch da última resposta
 
 
 class ChargeReply(Base):

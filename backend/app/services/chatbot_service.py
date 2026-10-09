@@ -220,7 +220,7 @@ class ChatbotService:
             except GatewayError as exc:
                 item.attempts += 1
                 item.error = str(exc)[:300]
-                if item.attempts >= 3:
+                if item.attempts >= 6:  # ~2 min tentando: cobre o serviço acordando no plano grátis
                     item.status = "ERRO"
                 await self.session.commit()
                 break  # provavelmente desconectado: tenta de novo no próximo ciclo
@@ -250,6 +250,14 @@ class ChatbotService:
         message_id = key.get("id")
         if message_id and conv.last_message_id == message_id:
             return "repetido"
+        # ao acordar (plano grátis), o WhatsApp reentrega mensagens antigas: só processa as mais novas
+        ts = _timestamp(data.get("messageTimestamp"))
+        if ts is not None:
+            if conv.last_inbound_ts and ts < conv.last_inbound_ts:
+                return "repetido"
+            if conv.last_charge_at and ts < int(conv.last_charge_at.timestamp()) - 60:
+                return "ignorado"  # anterior à cobrança atual
+            conv.last_inbound_ts = ts
         conv.last_message_id = message_id
 
         msg = data.get("message") or {}
@@ -373,6 +381,16 @@ class ChatbotService:
         await self.session.commit()
 
 
+def _timestamp(value) -> int | None:
+    """messageTimestamp da Evolution: número, texto ou {"low": n} (Long do protobuf)."""
+    if isinstance(value, dict):
+        value = value.get("low")
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _digits(phone: str) -> str:
     return "".join(c for c in phone if c.isdigit())
 
@@ -412,7 +430,8 @@ async def _drain(session_factory) -> None:
                     # esperar o intervalo entre cobranças não conta como "parado"; falhas seguidas, sim
                     waiting_gap = _next_charge_at is not None and _now() < _next_charge_at
                     idle = 0 if sent or waiting_gap else idle + 1
-                    await asyncio.sleep(1 if sent else 5)
+                    # sem envio e sem intervalo a respeitar: provavelmente o WhatsApp está acordando
+                    await asyncio.sleep(1 if sent else 5 if waiting_gap else 20)
             finally:
                 await lock_session.scalar(text("SELECT pg_advisory_unlock(:k)"), {"k": WORKER_LOCK})
     except asyncio.CancelledError:
