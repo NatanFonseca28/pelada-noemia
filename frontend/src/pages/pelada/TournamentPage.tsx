@@ -8,7 +8,7 @@ import { useTournament, useTournamentActions } from '@/api/tournaments'
 import type { MatchItem, Tournament } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { Confetti } from '@/components/Confetti'
-import { KickoffNote } from '@/components/KickoffNote'
+import { GoalkeeperNote, KickoffNote } from '@/components/KickoffNote'
 import { MatchSheetPanel } from '@/components/MatchSheetPanel'
 import { ShareButton } from '@/components/ShareButton'
 import { useConfirm } from '@/contexts/feedback'
@@ -137,6 +137,7 @@ function MatchCard({ match, isNext, canEdit, onEdit, onReopen, onSheet }: {
         }
       />
       <KickoffNote match={match} className="mt-2" />
+      <GoalkeeperNote match={match} className="mt-1" />
       {match.loans?.map((x) => (
         <p key={x.player_id} className="mt-1.5 flex items-start gap-1.5 text-xs">
           <ArrowLeftRight size={14} strokeWidth={ICON_STROKE} className="mt-0.5 shrink-0 text-muted" aria-hidden />

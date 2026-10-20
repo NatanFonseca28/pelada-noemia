@@ -8,7 +8,7 @@ import { useConfirm, useToast } from '@/contexts/feedback'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useOnline } from '@/hooks/useSheetQueue'
-import { KickoffNote } from './KickoffNote'
+import { GoalkeeperNote, KickoffNote } from './KickoffNote'
 import type { EventType, MatchItem } from '@/api/types'
 import { eventLabel } from '@/lib/labels'
 import { teamColor } from '@/lib/teamColors'
@@ -165,6 +165,7 @@ export function MatchSheetPanel({ match, canEdit, tieRule, onFinished }: {
         </span>
       </div>
       <KickoffNote match={match} className="-mt-1 justify-center text-sm" />
+      <GoalkeeperNote match={match} className="justify-center text-sm" />
 
       {canEdit && match.status !== 'ENCERRADA' && (
         <div className="rounded-card border border-line py-4">

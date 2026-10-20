@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.domain.formats import FORMAT_INFO, FormatCode, Stage, TimeConfig, build_matches, suggest_formats
+from app.domain.goalkeeper_assign import GkMatch, assign_match_goalkeepers
 from app.domain.kickoff import KickoffMatch, assign_kickoffs
 from app.domain.standings import (
     KnockoutResult,
@@ -19,7 +20,9 @@ from app.domain.standings import (
     knockout_winner,
     resolve_source,
 )
-from app.models.round import Round, RoundStatus, Team
+from app.models.enums import Position
+from app.models.player import Player
+from app.models.round import Attendance, AttendanceStatus, Round, RoundStatus, Team, TeamPlayer, TeamRole
 from app.models.tournament import Match, MatchStatus, Tournament, TournamentGroup, TournamentGroupTeam, TournamentStatus
 from app.models.user import User
 from app.repositories.settings_repo import SettingsRepository
@@ -27,6 +30,7 @@ from app.schemas.tournament import (
     FormatOptionOut,
     FormatsOut,
     GroupOut,
+    MatchGkOut,
     MatchLoanOut,
     MatchOut,
     MatchResultIn,
@@ -357,6 +361,28 @@ class TournamentService:
                 rnd.status = RoundStatus.TIMES_TRAVADOS
 
     # ---------------------------------------------------------- leitura
+    async def _shared_goalkeepers(self, round_id: int, matches: list[Match]) -> dict[int, list[MatchGkOut]]:
+        """Goleiro fixo sem time: a qual time pertence em cada partida (times de 5 sem goleiro nem revezamento)."""
+        in_teams = list(await self.session.scalars(select(TeamPlayer).where(TeamPlayer.round_id == round_id)))
+        placed = {tp.player_id for tp in in_teams}
+        gks = list((await self.session.execute(
+            select(Player).join(Attendance, Attendance.player_id == Player.id).where(
+                Attendance.round_id == round_id, Attendance.status == AttendanceStatus.CONFIRMADO,
+                Player.primary_position == Position.GOLEIRO_FIXO,
+            ).order_by(Player.display_name)
+        )).scalars())
+        gks = [g for g in gks if g.id not in placed]
+        if not gks or not in_teams:
+            return {}
+        covered = {tp.team_id for tp in in_teams if tp.role in (TeamRole.GOLEIRO_FIXO, TeamRole.REVEZAMENTO)}
+        needy = {tp.team_id for tp in in_teams} - covered
+        names = {g.id: g.display_name for g in gks}
+        plan = assign_match_goalkeepers(
+            [GkMatch(m.id, m.seq, m.home_team_id, m.away_team_id) for m in matches], needy, [g.id for g in gks]
+        )
+        return {mid: [MatchGkOut(team_id=t, player_id=g, player_name=names[g]) for t, g in sides.items()]
+                for mid, sides in plan.items()}
+
     async def detail(self, tournament_id: int) -> TournamentOut:
         t = await self._tournament(tournament_id)
         rnd = await self._round(t.round_id)
@@ -395,6 +421,7 @@ class TournamentService:
              for m in matches],
             campaign_ranking(tables) if t.format_code != FormatCode.PELADA_NORMAL else {},
         )
+        gk_by_match = await self._shared_goalkeepers(t.round_id, matches)
         loan_data = await CallRollService(self.session).plan(t.round_id)
         loans_by_match: dict[int, list[MatchLoanOut]] = {}
         if loan_data:
@@ -414,6 +441,7 @@ class TournamentService:
                 home_penalties=m.home_penalties, away_penalties=m.away_penalties,
                 winner_team_id=m.winner_team_id, kickoff_team_id=kickoffs.get(m.id), started_at=m.started_at,
                 elapsed_before_pause=m.elapsed_before_pause, ended_at=m.ended_at, version=m.version,
+                goalkeepers=gk_by_match.get(m.id, []),
                 loans=loans_by_match.get(m.id, []),
             )
             for m in matches

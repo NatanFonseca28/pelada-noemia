@@ -92,22 +92,42 @@ def test_18_de_linha_3_times_de_6_revezando():
     assert all(t.has_rotation_gk for t in r.teams)
 
 
-def test_17_de_linha_e_1_goleiro_fixo_agarra_para_todos():
+def test_17_de_linha_e_1_goleiro_fixo_pertence_ao_unico_time_de_5():
     players = make_players(zag=7, ala=6, ata=4, gk=1)
     r = run_draw(players, CFG, seed=5)
-    assert r.num_teams == 3 and not any(t.has_fixed_gk for t in r.teams)
-    assert r.shared_goalkeepers == [players[-1].id]
+    assert r.num_teams == 3 and r.shared_goalkeepers == []
     assert sorted(t.line_count for t in r.teams) == [5, 6, 6]
-    assert any("Não pertencem a nenhum time" in i for i in r.infos)
+    owner = next(t for t in r.teams if t.has_fixed_gk)
+    assert owner.line_count == 5 and not owner.has_rotation_gk
+    assert [t.has_rotation_gk for t in r.teams if t is not owner] == [True, True]
+    assert not r.warnings
 
 
-def test_16_de_linha_e_2_goleiros_fixos_sao_da_pelada():
+def test_18_de_linha_e_1_goleiro_fixo_avisa_que_ele_sobra():
+    players = make_players(zag=7, ala=7, ata=4, gk=1)
+    r = run_draw(players, CFG, seed=7)
+    assert [t.line_count for t in r.teams] == [6, 6, 6]
+    assert not any(t.has_fixed_gk for t in r.teams)
+    assert r.shared_goalkeepers == [players[-1].id]
+    assert any("Faltam 2 jogador(es)" in w and "4 times" in w and "não precisa de goleiro fixo" in w
+               for w in r.warnings)
+
+
+@pytest.mark.parametrize(("zag", "ala", "ata", "sizes"), [(6, 6, 4, [5, 5, 6]), (6, 5, 4, [5, 5, 5])])
+def test_mais_de_um_time_de_5_goleiro_fixo_fica_da_pelada(zag, ala, ata, sizes):
+    players = make_players(zag=zag, ala=ala, ata=ata, gk=1)
+    r = run_draw(players, CFG, seed=3)
+    assert sorted(t.line_count for t in r.teams) == sizes
+    assert not any(t.has_fixed_gk for t in r.teams)
+    assert r.shared_goalkeepers == [players[-1].id]
+    assert not any("não precisa de goleiro fixo" in w for w in r.warnings)
+
+
+def test_16_de_linha_e_2_goleiros_fixos_vao_para_os_2_times_de_5():
     players = make_players(zag=6, ala=6, ata=4, gk=2)
     r = run_draw(players, CFG, seed=9)
-    assert not any(t.has_fixed_gk for t in r.teams)
-    assert len(r.shared_goalkeepers) == 2
     assert sorted(t.line_count for t in r.teams) == [5, 5, 6]
-    assert not any("voluntário" in i for i in r.infos)  # 2 goleiros cobrem as duas metas
+    assert sum(t.has_fixed_gk for t in r.teams) == 2 and r.shared_goalkeepers == []
     assert not any(t["uses_volunteer_gk"] for t in r.to_dict()["teams"])
 
 
@@ -133,11 +153,11 @@ def test_goleiro_fixo_no_maximo_um_por_time():
     assert all(sum(p.role == Role.GOLEIRO_FIXO for p in t.players) == 1 for t in r.teams)
 
 
-def test_mais_goleiros_que_times_ficam_todos_sem_time():
+def test_mais_goleiros_que_times_sobram_como_goleiros_da_pelada():
     players = make_players(zag=6, ala=6, ata=3, gk=5)
     r = run_draw(players, CFG, seed=2)
-    assert len(r.shared_goalkeepers) == 5 and not r.warnings
-    assert not any(t.has_fixed_gk for t in r.teams)
+    assert len(r.shared_goalkeepers) == 2 and not r.warnings
+    assert all(t.has_fixed_gk for t in r.teams)
     assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
 
 
@@ -210,9 +230,12 @@ def test_nenhum_time_passa_de_5_na_linha_mais_1_no_gol(line, gks):
     for t in r.teams:
         assert t.line_count <= (5 if t.has_fixed_gk else 6)
         assert sum(p.role == Role.REVEZAMENTO for p in t.players) <= (0 if t.has_fixed_gk else 1)
-    assert all(t.has_fixed_gk for t in r.teams) == (gks == r.num_teams)
-    if gks != r.num_teams:
-        assert not any(t.has_fixed_gk for t in r.teams) and len(r.shared_goalkeepers) == gks
+    fives = sum(not t.has_rotation_gk for t in r.teams)  # times que ficam só com 5 na linha
+    owned = sum(t.has_fixed_gk for t in r.teams)
+    # goleiro fixo só ganha time quando os times de 5 não passam dos goleiros
+    assert owned == (fives if gks and gks >= fives else 0)
+    assert len(r.shared_goalkeepers) == gks - owned
+    assert (fives == 0 and gks > 0) == any("não precisa de goleiro fixo" in w for w in r.warnings)
     assert sorted(all_ids(r) + r.reserves + r.shared_goalkeepers) == [p.id for p in players]
 
 

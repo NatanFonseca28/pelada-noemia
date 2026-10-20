@@ -400,6 +400,8 @@ export interface MatchItem {
   /** segundos jogados, sem pausas */
   elapsed_before_pause: number
   version: number
+  /** goleiro fixo da pelada (sem time) e o time a que pertence nesta partida */
+  goalkeepers?: { team_id: number; player_id: number; player_name: string }[]
   /** quem completa time desfalcado nesta partida (chamada) */
   loans?: { team_id: number; player_id: number; player_name: string; from_team_name: string; replaces_name: string }[]
 }

@@ -72,6 +72,12 @@ class MatchLoanOut(BaseModel):
     replaces_name: str
 
 
+class MatchGkOut(BaseModel):
+    team_id: int  # time a que o goleiro da pelada pertence nesta partida
+    player_id: int
+    player_name: str
+
+
 class MatchOut(BaseModel):
     id: int
     seq: int
@@ -99,6 +105,7 @@ class MatchOut(BaseModel):
     elapsed_before_pause: int
     ended_at: datetime | None
     version: int
+    goalkeepers: list[MatchGkOut] = []  # goleiro fixo da pelada em cada lado (sem dono)
     loans: list[MatchLoanOut] = []  # empréstimos para completar time desfalcado (chamada)
 
 

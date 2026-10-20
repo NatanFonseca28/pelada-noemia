@@ -12,9 +12,10 @@ Regras (ver plano, seção 0 e "Regras do sorteio"):
  6. Excedentes (linha mod 5) vão no máximo um por time, só para times sem goleiro fixo,
     marcados como revezamento no gol: todo time é 5 na linha + 1 no gol. Quem não couber
     fica de reserva (sorteado entre todos de linha, antes da distribuição).
- 7. Goleiro fixo é fixo na posição, não no time: só entra em um time quando há exatamente
-    um goleiro fixo por time (ex.: 4 times e 4 goleiros). Fora isso, os goleiros fixos ficam
-    em `shared_goalkeepers` e agarram para todos os times. Nível e velocidade de goleiro
+ 7. Goleiro fixo é fixo na posição: pertence a um time que ficou só com 5 na linha (sem
+    excedente revezando) quando há times assim em número igual ou menor que os goleiros. Se
+    há mais times de 5 que goleiros, os goleiros ficam em `shared_goalkeepers` e a Tabela
+    diz a qual time cada goleiro pertence em cada jogo. Se todos os times têm 6, avisa. Nível e velocidade de goleiro
     nunca entram no equilíbrio.
  8. "Equilibrar por nível e velocidade": força = nível + velocidade (1 a 5 cada, 3 se não
     informado). Dentro de cada posição, o mais forte disponível vai para o time mais fraco;
@@ -31,7 +32,7 @@ import random
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
-ALGORITHM_VERSION = "2.1"
+ALGORITHM_VERSION = "2.2"
 DEFAULT_LEVEL = 3
 DEFAULT_SPEED = 3
 
@@ -486,29 +487,44 @@ def run_draw(
             place(teams[t], candidate, pos, how)
             substitutions.append(Substitution(candidate.id, candidate.name, t, pos, how))
 
-    # 7. Goleiros fixos: um por time só quando a conta fecha; senão, goleiros da pelada
+    # 6/7. Excedentes revezam no gol (os times mais fracos primeiro); os times que ficam com só 5 na linha
+    # são os candidatos a dono do goleiro fixo. Goleiro fixo é da posição, não do time: só ganha time quando
+    # há times de 5 suficientes para todos os goleiros; senão agarra para quem estiver em campo (por partida).
     team_order = list(range(n))
     rng.shuffle(team_order)
+    extras = _order_candidates(leftovers + no_position, rng, config.balance_by_skill)
+    receivers = list(team_order)
+    if config.balance_by_skill:
+        receivers.sort(key=lambda t: teams[t].strength_sum)
+    assert len(extras) <= len(receivers), "excedentes além de 5 + 1 deveriam ter virado reserva"
+    receivers = receivers[: len(extras)]
+    owners = [t for t in team_order if t not in receivers]
+
     shared: list[DrawPlayer] = []
-    if len(goalkeepers) == n:
+    if goalkeepers and len(goalkeepers) >= len(owners):
         gk_pool = list(goalkeepers)
         rng.shuffle(gk_pool)
-        for t, gk in zip(team_order, gk_pool):
+        for t, gk in zip(owners, gk_pool, strict=False):
             place(teams[t], gk, GOALKEEPER, FilledBy.PRIMARIA, Role.GOLEIRO_FIXO)
+        shared = sorted(gk_pool[len(owners):], key=lambda p: p.name)
     elif goalkeepers:
         shared = sorted(goalkeepers, key=lambda p: p.name)
+    if shared:
         infos.append(
             f"Goleiro(s) fixo(s) da pelada: {', '.join(g.name for g in shared)}. Não pertencem a nenhum time: "
-            "agarram para os times que estiverem em campo."
+            "agarram para os times de 5 na linha que estiverem em campo (a Tabela mostra o goleiro de cada jogo)."
+        )
+    if goalkeepers and not owners:
+        missing_players = (n + 1) * per - (1 if config.allow_short_team else 0) - total_line
+        need_more = f"Faltam {missing_players} jogador(es) de linha para fechar {n + 1} times, ou " if missing_players > 0 else "Escolha mais times, ou "
+        warnings.append(
+            f"Os {n} times já fecham {per} na linha + 1 revezando no gol, então o goleiro fixo "
+            f"({', '.join(g.name for g in goalkeepers)}) não pertence a nenhum time. "
+            + need_more + "a rodada não precisa de goleiro fixo."
         )
 
     # 6. Excedentes: no máximo um por time, só para quem não tem goleiro fixo
-    extras = _order_candidates(leftovers + no_position, rng, config.balance_by_skill)
-    without_gk = [t for t in team_order if not teams[t].has_fixed_gk]
-    if config.balance_by_skill:
-        without_gk.sort(key=lambda t: teams[t].strength_sum)
-    assert len(extras) <= len(without_gk), "excedentes além de 5 + 1 deveriam ter virado reserva"
-    for t, p in zip(without_gk, extras):
+    for t, p in zip(receivers, extras, strict=True):
         position = p.primary or "ALA"
         how = FilledBy.PRIMARIA if p.primary else FilledBy.SEM_POSICAO
         place(teams[t], p, position, how, Role.REVEZAMENTO)
