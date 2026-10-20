@@ -369,9 +369,9 @@ class TournamentService:
             select(Player).join(Attendance, Attendance.player_id == Player.id).where(
                 Attendance.round_id == round_id, Attendance.status == AttendanceStatus.CONFIRMADO,
                 Player.primary_position == Position.GOLEIRO_FIXO,
-            ).order_by(Player.display_name)
+            )
         )).scalars())
-        gks = [g for g in gks if g.id not in placed]
+        gks = sorted((g for g in gks if g.id not in placed), key=lambda g: g.display_name)
         if not gks or not in_teams:
             return {}
         covered = {tp.team_id for tp in in_teams if tp.role in (TeamRole.GOLEIRO_FIXO, TeamRole.REVEZAMENTO)}
