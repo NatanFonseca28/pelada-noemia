@@ -22,9 +22,13 @@ from app.models.audit import AuditLog
 from app.models.enums import PlayerType
 from app.models.finance import CashEntry, CashKind, CollectionItem, FinanceCollection, MonthlyFee
 from app.models.player import Player
+from app.models.round import Attendance, AttendanceStatus, Round
 from app.models.user import User
 from app.repositories.settings_repo import SettingsRepository
 from app.schemas.finance import (
+    DailyItem,
+    DailyOverview,
+    DailyRound,
     CashEntryIn,
     ChargeMessageIn,
     ChargeMessageOut,
@@ -74,13 +78,15 @@ class FinanceService:
         current = await self.settings.get_current()
         before = FinanceConfig.model_validate(current).model_dump(mode="json")
         for key, value in data.model_dump().items():
-            setattr(current, key, value)
+            if value is not None or key == "finance_opening_month":  # a diária ausente mantém o valor
+                setattr(current, key, value)
+        out = FinanceConfig.model_validate(current)
         await audit_service.record(
             self.session, user_id=actor.id, action="UPDATE", entity="finance_config", entity_id=1,
-            before=before, after=data.model_dump(mode="json"),
+            before=before, after=out.model_dump(mode="json"),
         )
         await self.session.commit()
-        return data
+        return out
 
     # ---------- Visão geral ----------
     async def overview(self, year: int) -> FinanceOverview:
@@ -128,10 +134,13 @@ class FinanceService:
             for p in players
         ]
 
+        daily_paid = await self.daily_paid_by_month(year)
         summary = []
         for m in months:
             fee_total = sum((f.amount or ZERO for f in fees if f.month == m), ZERO)
+            # entradas = lançamentos de caixa + diárias antecipadas já pagas (calculadas das presenças)
             income = sum((e.amount for e in entries if e.month == m and e.kind == CashKind.ENTRADA), ZERO)
+            income += daily_paid.get(m, ZERO)
             expenses = sum((e.amount for e in entries if e.month == m and e.kind == CashKind.SAIDA), ZERO)
             summary.append(
                 MonthSummary(
@@ -342,7 +351,55 @@ class FinanceService:
         )
         signed = func.sum(case((CashEntry.kind == CashKind.ENTRADA, CashEntry.amount), else_=-CashEntry.amount))
         entries = await self.session.scalar(select(func.coalesce(signed, 0)).where(CashEntry.month >= start))
-        return (config.finance_opening_balance + Decimal(fees) + Decimal(entries)).quantize(Decimal("0.01"))
+        daily = await self.session.scalar(
+            select(func.coalesce(func.sum(Attendance.fee_amount), 0))
+            .join(Round, Round.id == Attendance.round_id)
+            .where(Attendance.paid_at.is_not(None), Attendance.status == AttendanceStatus.CONFIRMADO,
+                   Round.date >= start)
+        )
+        return (config.finance_opening_balance + Decimal(fees) + Decimal(entries) + Decimal(daily)).quantize(
+            Decimal("0.01"))
+
+    # ---------- Diárias (diaristas pagam antes, por rodada) ----------
+    async def daily_paid_by_month(self, year: int) -> dict[date, Decimal]:
+        rows = await self.session.execute(
+            select(extract("month", Round.date), func.coalesce(func.sum(Attendance.fee_amount), 0))
+            .join(Round, Round.id == Attendance.round_id)
+            .where(extract("year", Round.date) == year, Attendance.paid_at.is_not(None),
+                   Attendance.status == AttendanceStatus.CONFIRMADO)
+            .group_by(extract("month", Round.date))
+        )
+        return {date(year, int(m), 1): Decimal(total) for m, total in rows.all()}
+
+    async def daily_overview(self, month: date) -> DailyOverview:
+        start = month.replace(day=1)
+        end = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+        rows = (await self.session.execute(
+            select(Round, Attendance, Player)
+            .join(Attendance, Attendance.round_id == Round.id)
+            .join(Player, Player.id == Attendance.player_id)
+            .where(Round.date >= start, Round.date < end, Attendance.status == AttendanceStatus.CONFIRMADO,
+                   Player.type == PlayerType.DIARISTA)
+            .order_by(Round.date.desc(), Player.name)
+        )).all()
+        rounds: dict[int, DailyRound] = {}
+        for rnd, att, player in rows:
+            dr = rounds.setdefault(rnd.id, DailyRound(round_id=rnd.id, date=rnd.date, status=rnd.status.value,
+                                                       items=[], expected=ZERO, received=ZERO))
+            if att.fee_amount:
+                paid = att.paid_at is not None
+                dr.items.append(DailyItem(player_id=player.id, name=player.display_name, amount=att.fee_amount,
+                                          paid=paid, paid_at=att.paid_at, phone=player.phone,
+                                          whatsapp_opt_in=player.whatsapp_opt_in))
+                dr.expected += att.fee_amount
+                if paid:
+                    dr.received += att.fee_amount
+            elif att.role == "GOLEIRO":
+                dr.free_goalkeepers.append(player.display_name)
+        expected = sum((r.expected for r in rounds.values()), ZERO)
+        received = sum((r.received for r in rounds.values()), ZERO)
+        return DailyOverview(month=start, rounds=list(rounds.values()), expected=expected, received=received,
+                             pending=expected - received)
 
     # ---------- Mensalidades ----------
     async def set_fee(self, data: FeeCellIn, actor: User) -> FeeCellOut | None:

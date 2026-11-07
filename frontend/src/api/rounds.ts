@@ -44,8 +44,11 @@ export function useRoundActions(roundId: number) {
     status: useRoundAction(roundId, (action: 'open' | 'close' | 'lock' | 'unlock') =>
       api<RoundDetail>(`${base}/${action}`, { method: 'POST' }),
     ),
-    attendance: useRoundAction(roundId, ({ playerId, confirmed }: { playerId: number; confirmed: boolean }) =>
-      api<RoundDetail>(`${base}/attendances/${playerId}`, { method: 'PUT', body: json({ confirmed }) }),
+    attendance: useRoundAction(roundId, ({ playerId, confirmed, role }: { playerId: number; confirmed: boolean; role?: 'LINHA' | 'GOLEIRO' }) =>
+      api<RoundDetail>(`${base}/attendances/${playerId}`, { method: 'PUT', body: json({ confirmed, role }) }),
+    ),
+    paid: useRoundAction(roundId, ({ playerId, paid }: { playerId: number; paid: boolean }) =>
+      api<RoundDetail>(`${base}/attendances/${playerId}/paid`, { method: 'PUT', body: json({ paid }) }),
     ),
     clearAttendance: useRoundAction(roundId, (playerId: number) =>
       api<RoundDetail>(`${base}/attendances/${playerId}`, { method: 'DELETE' }),
@@ -84,8 +87,8 @@ export function useDeleteRound() {
 export function useMyAttendance(roundId: number) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (confirmed: boolean) =>
-      api<RoundDetail>(`/rounds/${roundId}/attendance/me`, { method: 'PUT', body: json({ confirmed }) }),
+    mutationFn: ({ confirmed, role }: { confirmed: boolean; role?: 'LINHA' | 'GOLEIRO' }) =>
+      api<RoundDetail>(`/rounds/${roundId}/attendance/me`, { method: 'PUT', body: json({ confirmed, role }) }),
     onSuccess: (data) => {
       qc.setQueryData(['rounds', 'current'], data)
       qc.invalidateQueries({ queryKey: ['rounds'], exact: true })

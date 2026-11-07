@@ -94,15 +94,15 @@ class DashboardService:
         if rnd is None:
             return None
         confirmed = (await self.session.execute(
-            select(Player.primary_position)
+            select(Player.primary_position, Attendance.role)
             .join(Attendance, Attendance.player_id == Player.id)
             .where(Attendance.round_id == rnd.id, Attendance.status == AttendanceStatus.CONFIRMADO)
-        )).scalars().all()
+        )).all()
         teams = await self.session.scalar(select(func.count()).select_from(Team).where(Team.round_id == rnd.id)) or 0
         tournament_id = await self.session.scalar(select(Tournament.id).where(Tournament.round_id == rnd.id))
         return RoundNumbers(
             id=rnd.id, date=rnd.date, status=rnd.status.value, confirmed=len(confirmed),
-            goalkeepers=sum(1 for p in confirmed if p == Position.GOLEIRO_FIXO), teams=teams, tournament_id=tournament_id,
+            goalkeepers=sum(1 for p, role in confirmed if p == Position.GOLEIRO_FIXO or role == "GOLEIRO"), teams=teams, tournament_id=tournament_id,
         )
 
     async def _season(self, year: int) -> SeasonNumbers:

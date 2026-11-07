@@ -23,7 +23,7 @@ function CurrentRoundCard({ round }: { round: RoundDetail }) {
         </div>
         {round.my_player_id ? (
           round.status === 'ABERTA' ? (
-            <Button size="lg" variant={confirmed ? 'secondary' : 'primary'} loading={my.isPending} onClick={() => my.mutate(!confirmed)}>
+            <Button size="lg" variant={confirmed ? 'secondary' : 'primary'} loading={my.isPending} onClick={() => my.mutate({ confirmed: !confirmed })}>
               {confirmed ? '✕ Cancelar presença' : '✓ Confirmar presença'}
             </Button>
           ) : (

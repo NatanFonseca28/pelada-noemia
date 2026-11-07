@@ -31,6 +31,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
+import { DailyTab } from '@/components/finance/DailyTab'
 import { ChargePanel } from '@/components/finance/ChargePanel'
 import { FinanceChart } from '@/components/finance/FinanceChart'
 import { Alert, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, PlayerName, Skeleton, Spinner, TypeDot, TypeLegend, cx } from '@/components/ui'
@@ -38,9 +39,10 @@ import { useCountUp } from '@/hooks/useCountUp'
 import { computeFlow, tileNumbers, toQuarters } from '@/lib/finance'
 import { cashCategoryLabel, monthAbbr, monthLong, monthShort, money } from '@/lib/labels'
 
-type Tab = 'mensalidades' | 'caixa' | 'cobrancas' | 'config'
+type Tab = 'mensalidades' | 'diaristas' | 'caixa' | 'cobrancas' | 'config'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'mensalidades', label: 'Mensalidades' },
+  { id: 'diaristas', label: 'Diaristas' },
   { id: 'caixa', label: 'Caixa' },
   { id: 'cobrancas', label: 'Cobranças avulsas' },
   { id: 'config', label: 'Importar / Config.' },
@@ -705,6 +707,7 @@ function ConfigCard({ config }: { config: FinanceConfig }) {
     try {
       await save.mutateAsync({
         monthly_fee: String(form.monthly_fee).replace(',', '.'),
+        daily_fee: String(form.daily_fee ?? '').replace(',', '.') || null,
         finance_opening_balance: String(form.finance_opening_balance).replace(',', '.'),
         finance_opening_month: form.finance_opening_month ? `${monthKey(form.finance_opening_month)}-01` : null,
       })
@@ -719,9 +722,12 @@ function ConfigCard({ config }: { config: FinanceConfig }) {
       <h2 className="mb-4 font-semibold">Configuração do caixa</h2>
       <form onSubmit={onSubmit} className="space-y-4">
         {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Field label="Mensalidade (R$)">
             <input className="input" inputMode="decimal" required value={form.monthly_fee} onChange={(e) => setForm({ ...form, monthly_fee: e.target.value })} />
+          </Field>
+          <Field label="Diária do diarista (R$)" hint="Paga antes do jogo">
+            <input className="input" inputMode="decimal" required value={form.daily_fee ?? ''} onChange={(e) => setForm({ ...form, daily_fee: e.target.value })} />
           </Field>
           <Field label="Saldo de abertura (R$)">
             <input className="input" inputMode="decimal" required value={form.finance_opening_balance} onChange={(e) => setForm({ ...form, finance_opening_balance: e.target.value })} />
@@ -945,6 +951,8 @@ export function FinancePage() {
             <FeesGrid data={data} delinquentOnly={delinquentOnly} onDelinquentOnly={setDelinquentOnly} />
           </>
         ) : <EmptyState>Nenhuma mensalidade. Importe a planilha na aba “Importar / Config.”.</EmptyState>
+      ) : tab === 'diaristas' ? (
+        <DailyTab />
       ) : tab === 'caixa' ? (
         <CashTab year={year} />
       ) : tab === 'cobrancas' ? (

@@ -49,6 +49,7 @@ class PeladaSettings(TimestampMixin, Base):
     two_yellows_red: Mapped[bool] = mapped_column(Boolean, default=True)
     # Financeiro
     monthly_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("50.00"))
+    daily_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("20.00"), server_default="20.00")
     finance_opening_balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     finance_opening_month: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Páginas ocultas por categoria (definidas pelo superadmin): {"JOGADOR": ["/estatisticas"], ...}

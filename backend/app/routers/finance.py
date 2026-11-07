@@ -16,6 +16,7 @@ from app.schemas.finance import (
     CollectionItemIn,
     CollectionItemUpdate,
     CollectionOut,
+    DailyOverview,
     DelinquentOut,
     FeeCellIn,
     FeeCellOut,
@@ -34,6 +35,12 @@ MAX_SHEET_BYTES = 5 * 1024 * 1024
 
 def _year(year: int | None) -> int:
     return year or date.today().year
+
+
+@router.get("/daily", response_model=DailyOverview)
+async def daily(admin: AdminUser, session: SessionDep, month: date | None = Query(None)):
+    """Diárias antecipadas dos diaristas, por rodada do mês (padrão: mês atual)."""
+    return await FinanceService(session).daily_overview(month or today_local().replace(day=1))
 
 
 @router.get("/overview", response_model=FinanceOverview)

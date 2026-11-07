@@ -32,7 +32,7 @@ function AttendancePanel({ round, players }: { round: RoundDetail; players: Play
     .sort((a, b) => Number(confirmed.has(b.id)) - Number(confirmed.has(a.id)) || a.display_name.localeCompare(b.display_name))
 
   const counts = round.attendances.reduce<Record<string, number>>((acc, a) => {
-    const k = a.primary_position ?? 'SEM'
+    const k = a.role === 'GOLEIRO' ? 'GOLEIRO_FIXO' : (a.primary_position ?? 'SEM') // "vou só agarrar" conta como goleiro
     acc[k] = (acc[k] ?? 0) + 1
     return acc
   }, {})
@@ -189,9 +189,9 @@ function DrawPanel({ round }: { round: RoundDetail }) {
     if (id && round.teams.some((t) => t.players.some((p) => p.player_id === id))) move.mutate({ player_id: id, team_id: null })
   }
 
-  const doDraw = (num_teams?: number) => {
+  const doDraw = (num_teams?: number, short = allowShort) => {
     if (round.teams.length && !confirm('Refazer o sorteio? Os ajustes manuais serão perdidos.')) return
-    draw.mutate({ ...(num_teams ? { num_teams } : {}), allow_short_team: allowShort, competition: chosen || null })
+    draw.mutate({ ...(num_teams ? { num_teams } : {}), allow_short_team: short, competition: chosen || null })
   }
 
   const error = draw.error ?? move.error ?? status.error
@@ -239,12 +239,21 @@ function DrawPanel({ round }: { round: RoundDetail }) {
         <label className="mb-3 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={allowShort} onChange={(e) => setAllowShort(e.target.checked)} />
           <span>
-            Permitir um time com um a menos
-            <span className="block text-xs text-muted">Se faltar só 1 para formar mais um time, ele é completado na hora por alguém do time que está de fora (só com 3 times ou mais).</span>
+            Jogar com menos 1
+            <span className="block text-xs text-muted">Se faltar só 1 para formar mais um time, ele joga com um a menos e é completado na hora por alguém do time que está de fora (só com 3 times ou mais). Não existe reserva: nenhum time passa de 6.</span>
           </span>
         </label>
       )}
-      {error && <div className="mb-3"><Alert>{errorText(error)}</Alert></div>}
+      {error && (
+        <div className="mb-3 space-y-2">
+          <Alert>{errorText(error)}</Alert>
+          {draw.error && errorText(draw.error).includes('Jogar com menos 1') && !allowShort && editable && (
+            <Button size="sm" variant="secondary" loading={draw.isPending} onClick={() => { setAllowShort(true); doDraw(undefined, true) }}>
+              Jogar com menos 1 e sortear de novo
+            </Button>
+          )}
+        </div>
+      )}
       {!d && !error && (
         <p className="py-6 text-center text-sm text-muted">
           Confirme os presentes e clique em <strong>Sortear times</strong>. Sortear fecha a lista de presença.
@@ -294,7 +303,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
         <div className="mb-3 space-y-2">
           {round.not_in_teams.length > 0 && (
             <Alert kind="info">
-              Confirmados fora dos times — reservas ou confirmados depois do sorteio (arraste para um time ou toque para escolher):{' '}
+              Confirmados fora dos times (não existe reserva; nenhum time passa de 6). Confirmaram depois do sorteio? Refaça o sorteio ou arraste para um time com vaga:{' '}
               {round.not_in_teams.map((p) => (
                 <button
                   key={p.player_id}

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import date, datetime
 from typing import Literal
 
@@ -30,6 +31,10 @@ class AttendanceOut(BaseModel):
     source: AttendanceSource
     updated_at: datetime
     checkin: str | None = None  # chamada no local: PRESENTE | FALTOU | None (não chamado)
+    role: Literal["LINHA", "GOLEIRO"] = "LINHA"  # "vou só agarrar" = GOLEIRO
+    # Diária antecipada (só admin ou o próprio jogador veem): None = não paga diária nesta rodada
+    fee_amount: Decimal | None = None
+    paid: bool | None = None
 
 
 class TeamPlayerOut(BaseModel):
@@ -124,6 +129,12 @@ class RoundDetail(RoundSummary):
 
 class AttendanceSet(BaseModel):
     confirmed: bool
+    # None mantém o papel atual (padrão LINHA); GOLEIRO = "vou só agarrar"
+    role: Literal["LINHA", "GOLEIRO"] | None = None
+
+
+class PaidSet(BaseModel):
+    paid: bool
 
 
 class DrawRequest(BaseModel):

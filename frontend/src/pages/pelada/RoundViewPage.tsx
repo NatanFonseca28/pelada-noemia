@@ -9,7 +9,7 @@ import { SharedGoalkeepers, TeamCard } from '@/components/TeamCard'
 import { CallRollPanel } from '@/components/rounds/CallRollPanel'
 import { useToast } from '@/contexts/feedback'
 import { Alert, Avatar, Badge, Button, Card, EmptyState, ICON_STROKE, PageHeader, PlayerName, PositionBadge, QueryState, Skeleton, TypeLegend, cx, errorMessage } from '@/components/ui'
-import { formatDate, roundStatusLabel } from '@/lib/labels'
+import { formatDate, money, roundStatusLabel } from '@/lib/labels'
 import { teamsText } from '@/lib/share'
 
 const statusColor = { ABERTA: 'green', FECHADA: 'gray', TIMES_TRAVADOS: 'blue', ENCERRADA: 'gray' } as const
@@ -35,16 +35,41 @@ function PresenceAction({ round }: { round: RoundDetail }) {
       </p>
     )
   }
-  const toggle = () =>
-    my.mutate(!confirmed, {
-      onSuccess: () => toast({ message: confirmed ? 'Presença cancelada' : 'Presença confirmada', tone: 'success' }),
+  const mine = round.attendances.find((a) => a.player_id === round.my_player_id)
+  const goalie = mine?.role === 'GOLEIRO'
+  const send = (next: boolean, role: 'LINHA' | 'GOLEIRO', message: string) =>
+    my.mutate({ confirmed: next, role }, {
+      onSuccess: () => toast({ message, tone: 'success' }),
       onError: (err) => toast({ message: errorMessage(err, 'Não foi possível atualizar sua presença'), tone: 'error' }),
     })
+  const fee = mine?.fee_amount ? (
+    <p className={cx('mt-2 text-sm', mine.paid ? 'text-primary-ink' : 'text-danger-ink')}>
+      Diária {money(mine.fee_amount)}: {mine.paid ? 'paga' : 'pague antes do jogo para garantir a vaga.'}
+    </p>
+  ) : null
+  if (!confirmed) {
+    return (
+      <div className="space-y-2">
+        <Button size="xl" className="w-full" loading={my.isPending} onClick={() => send(true, 'LINHA', 'Presença confirmada')}>
+          <Check size={22} strokeWidth={ICON_STROKE} aria-hidden /> Confirmar presença
+        </Button>
+        <Button size="lg" className="w-full" variant="secondary" loading={my.isPending} onClick={() => send(true, 'GOLEIRO', 'Presença confirmada como goleiro')}>
+          Vou só agarrar
+        </Button>
+      </div>
+    )
+  }
   return (
-    <Button size="xl" className="w-full" variant={confirmed ? 'secondary' : 'primary'} loading={my.isPending} onClick={toggle}>
-      {confirmed ? <X size={22} strokeWidth={ICON_STROKE} aria-hidden /> : <Check size={22} strokeWidth={ICON_STROKE} aria-hidden />}
-      {confirmed ? 'Cancelar minha presença' : 'Confirmar presença'}
-    </Button>
+    <div className="space-y-2">
+      <p className="text-sm text-muted">Você vai {goalie ? 'agarrar (goleiro)' : 'jogar na linha'}.</p>
+      {fee}
+      <Button size="xl" className="w-full" variant="secondary" loading={my.isPending} onClick={() => send(false, goalie ? 'GOLEIRO' : 'LINHA', 'Presença cancelada')}>
+        <X size={22} strokeWidth={ICON_STROKE} aria-hidden /> Cancelar minha presença
+      </Button>
+      <Button size="sm" variant="ghost" className="w-full" loading={my.isPending} onClick={() => send(true, goalie ? 'LINHA' : 'GOLEIRO', goalie ? 'Agora você joga na linha' : 'Agora você vai agarrar')}>
+        {goalie ? 'Mudar para jogar na linha' : 'Mudar para só agarrar'}
+      </Button>
+    </div>
   )
 }
 
@@ -52,7 +77,7 @@ function RoundView({ round }: { round: RoundDetail }) {
   const { hasRole } = useAuth()
   const confirmed = round.my_status === 'CONFIRMADO'
   const byPosition = POS_ORDER.map((pos) => ({ pos, people: round.attendances.filter((a) => a.primary_position === pos) })).filter((g) => g.people.length)
-  const line = round.attendances.filter((a) => a.primary_position !== 'GOLEIRO_FIXO').length
+  const line = round.attendances.filter((a) => a.primary_position !== 'GOLEIRO_FIXO' && a.role !== 'GOLEIRO').length
   // no celular a ação fica fixa acima da barra inferior (ao alcance do polegar)
   const stickyAction = round.status === 'ABERTA' && !!round.my_player_id
 

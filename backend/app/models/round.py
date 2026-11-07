@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
@@ -9,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     SmallInteger,
     String,
     UniqueConstraint,
@@ -61,6 +63,7 @@ class Attendance(Base):
     __table_args__ = (
         UniqueConstraint("round_id", "player_id", name="uq_attendances_round_player"),
         CheckConstraint("checkin IN ('PRESENTE', 'FALTOU')", name="checkin_values"),
+        CheckConstraint("role IN ('LINHA', 'GOLEIRO')", name="role_values"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -75,6 +78,11 @@ class Attendance(Base):
     # Chamada no local: PRESENTE | FALTOU (None = ainda não chamado)
     checkin: Mapped[str | None] = mapped_column(String(10), nullable=True)
     checkin_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Papel nesta rodada: LINHA (padrão) ou GOLEIRO ("vou só agarrar": não conta na linha e diarista não paga)
+    role: Mapped[str] = mapped_column(String(10), default="LINHA", server_default="LINHA")
+    # Diária antecipada (só diarista de linha): valor congelado na confirmação e quando foi paga
+    fee_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Draw(Base):

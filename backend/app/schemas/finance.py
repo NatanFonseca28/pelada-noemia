@@ -15,6 +15,8 @@ def _first_day(v: date) -> date:
 
 class FinanceConfig(ORMModel):
     monthly_fee: Decimal = Field(ge=0, le=10000)
+    # opcional na entrada: cliente antigo que não envia a diária não a zera (None = mantém o valor atual)
+    daily_fee: Decimal | None = Field(default=None, ge=0, le=10000)
     finance_opening_balance: Decimal = Field(ge=-1_000_000, le=1_000_000)
     finance_opening_month: date | None
 
@@ -237,3 +239,33 @@ class TransparencyOut(BaseModel):
     summary: list[MonthSummary]
     expenses: list[TransparencyExpense]
     players: list[TransparencyPlayer]
+
+
+class DailyItem(BaseModel):
+    """Diária antecipada de um diarista de linha numa rodada."""
+
+    player_id: int
+    name: str
+    amount: Decimal
+    paid: bool
+    paid_at: datetime | None = None
+    phone: str | None = None
+    whatsapp_opt_in: bool = False
+
+
+class DailyRound(BaseModel):
+    round_id: int
+    date: date
+    status: str
+    items: list[DailyItem]
+    expected: Decimal
+    received: Decimal
+    free_goalkeepers: list[str] = []  # diaristas que vão só agarrar (não pagam)
+
+
+class DailyOverview(BaseModel):
+    month: date
+    rounds: list[DailyRound]
+    expected: Decimal
+    received: Decimal
+    pending: Decimal

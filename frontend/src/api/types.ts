@@ -95,6 +95,7 @@ export type CashCategory = 'DIARISTAS_COLETE' | 'CAMPO' | 'DIVERSOS' | 'OUTROS'
 
 export interface FinanceConfig {
   monthly_fee: string
+  daily_fee?: string | null
   finance_opening_balance: string
   finance_opening_month: string | null
 }
@@ -222,6 +223,11 @@ export interface AttendanceItem {
   updated_at: string
   /** chamada no local; null = ainda não chamado */
   checkin?: 'PRESENTE' | 'FALTOU' | null
+  /** "vou só agarrar" = GOLEIRO: não conta na linha e diarista não paga */
+  role?: 'LINHA' | 'GOLEIRO'
+  /** diária antecipada (só admin e o próprio jogador veem); null = não paga nesta rodada */
+  fee_amount?: string | null
+  paid?: boolean | null
 }
 
 export interface TeamPlayerItem {
@@ -630,4 +636,33 @@ export interface Transparency {
   expenses: TransparencyExpense[]
   /** situação dos mensalistas ativos mês a mês (chave "YYYY-MM"), sem valores */
   players: { name: string; months: Record<string, MyMonthStatus> }[]
+}
+
+export interface DailyItem {
+  player_id: number
+  name: string
+  amount: string
+  paid: boolean
+  paid_at: string | null
+  phone: string | null
+  whatsapp_opt_in: boolean
+}
+
+export interface DailyRound {
+  round_id: number
+  date: string
+  status: string
+  items: DailyItem[]
+  expected: string
+  received: string
+  /** diaristas que vão só agarrar (não pagam) */
+  free_goalkeepers: string[]
+}
+
+export interface DailyOverview {
+  month: string
+  rounds: DailyRound[]
+  expected: string
+  received: string
+  pending: string
 }

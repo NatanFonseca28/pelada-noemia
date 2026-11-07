@@ -10,8 +10,9 @@ Regras (ver plano, seção 0 e "Regras do sorteio"):
  5. Vagas sem jogador da posição: 1º quem tem a posição como secundária, depois jogadores
     sem posição definida, depois qualquer restante. Tudo registrado em `substitutions`.
  6. Excedentes (linha mod 5) vão no máximo um por time, só para times sem goleiro fixo,
-    marcados como revezamento no gol: todo time é 5 na linha + 1 no gol. Quem não couber
-    fica de reserva (sorteado entre todos de linha, antes da distribuição).
+    marcados como revezamento no gol: todo time é 5 na linha + 1 no gol. NÃO EXISTE RESERVA:
+    nenhum time passa de 6 (5 + 1). Se sobrar gente que não cabe, o sorteio é recusado com a
+    orientação de quantos faltam para fechar mais um time (ou de marcar "jogar com menos 1").
  7. Goleiro fixo é fixo na posição: pertence a um time que ficou só com 5 na linha (sem
     excedente revezando) quando há times assim em número igual ou menor que os goleiros. Se
     há mais times de 5 que goleiros, os goleiros ficam em `shared_goalkeepers` e a Tabela
@@ -26,7 +27,7 @@ Regras (ver plano, seção 0 e "Regras do sorteio"):
 10. Sobra grande → `alternatives` para o admin decidir.
 11. "Time com um a menos" (opção do sorteio): com 3+ times, se faltar só 1 jogador de linha
     para mais um time, ele é formado com um a menos e completado na hora por alguém do
-    time que está de fora, em vez de deixar gente de reserva.
+    time que está de fora, em vez de sobrar gente.
 """
 import random
 from dataclasses import asdict, dataclass, field
@@ -213,7 +214,7 @@ class DrawResult:
     infos: list[str]
     alternatives: list[Alternative]
     shared_goalkeepers: list[int]  # goleiros fixos da pelada (sem time), regra 7
-    reserves: list[int]  # jogadores de linha que não couberam em 5 + 1
+    reserves: list[int]  # sempre vazio (não existe reserva); mantido para sorteios antigos
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -282,6 +283,32 @@ def _plan(line_total: int, goalkeepers: int, num_teams: int, per_team: int) -> t
     return sizes, rotation, surplus - rotation
 
 
+def _explain_surplus(line_total: int, n: int, bench: int, config: DrawConfig) -> str:
+    """Mensagem para quando sobra gente que não cabe em 5 na linha + 1 no gol (reserva não existe)."""
+    per = config.line_per_team
+    text = (
+        f"Sobram {bench} jogador(es) de linha: com {n} times cada um fecha no máximo {per} na linha + 1 no gol, "
+        "e não existe reserva."
+    )
+    nxt = n + 1
+    short = 1 if nxt >= 3 else 0  # "jogar com menos 1" só vale para campeonato (3+ times)
+    missing = nxt * per - line_total
+    if config.allow_short_team and short:
+        missing -= 1
+    if missing <= 0:
+        return text + f" Escolha {nxt} times."
+    hints = []
+    if not config.allow_short_team and short and missing == 1:
+        hints.append(f"marque \"Jogar com menos 1\" para formar {nxt} times")
+    else:
+        hints.append(f"confirme mais {missing} jogador(es) de linha para fechar {nxt} times")
+        if not config.allow_short_team and short and missing - 1 > 0:
+            hints.append(f"com \"Jogar com menos 1\" faltam só {missing - 1}")
+    hints.append(f"ou tire {bench} da lista de confirmados")
+    joined = ", ".join(hints)
+    return f"{text} {joined[0].upper()}{joined[1:]}."
+
+
 def _describe(num_teams: int, sizes: list[int], per_team: int, reserves: int) -> str:
     mode = "pelada normal" if num_teams == 2 else "campeonato"
     sizes_txt = "/".join(str(s) for s in sizes)
@@ -344,6 +371,8 @@ def suggest_alternatives(line_total: int, config: DrawConfig, goalkeepers: int =
         if teams > max_teams(line_total, per) or (teams >= 3 and line_total < min_championship):
             continue  # campeonato exige ao menos 3 times completos de linha (15 jogadores)
         base, rotation, reserves = _plan(line_total, goalkeepers, teams, per)
+        if reserves:
+            continue  # reserva não existe: formação que deixa gente de fora não é opção
         # o revezamento vai para os times sem goleiro fixo, que ficam no fim da lista
         sizes = [s + (1 if i >= teams - rotation else 0) for i, s in enumerate(base)]
         mode = Mode.PELADA_NORMAL if teams == 2 else Mode.CAMPEONATO
@@ -400,6 +429,9 @@ def run_draw(
             f"{len(goalkeepers)} goleiro(s) fixo(s)."
         )
 
+    if bench:
+        raise DrawError(_explain_surplus(total_line, n, bench, config))
+
     if team_pool:
         if len(team_pool) < n:
             raise DrawError(f"O campeonato escolhido tem só {len(team_pool)} clubes para {n} times.")
@@ -413,17 +445,8 @@ def run_draw(
     warnings: list[str] = []
     infos: list[str] = []
 
-    # 6. Quem não cabe em 5 + 1 fica de reserva: sorteio uniforme entre todos de linha,
-    # antes da distribuição, para não punir sempre os mais fracos de cada posição
+    # 6. Reserva não existe: quem não cabe em 5 + 1 impede o sorteio (ver `_explain_surplus`)
     reserves: list[DrawPlayer] = []
-    if bench:
-        reserves = sorted(rng.sample(line, bench), key=lambda p: p.name)
-        reserve_ids = {p.id for p in reserves}
-        line = [p for p in line if p.id not in reserve_ids]
-        warnings.append(
-            f"Cada time tem no máximo {per} na linha + 1 no gol: {bench} jogador(es) ficaram de reserva "
-            f"(sorteados): {', '.join(p.name for p in reserves)}. Coloque-os manualmente se quiser trocar alguém."
-        )
 
     # 3. Grupos por posição
     groups = {pos: _order_candidates([p for p in line if p.primary == pos], rng, config.balance_by_skill)

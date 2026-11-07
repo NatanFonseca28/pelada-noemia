@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, json } from './client'
-import type { CashEntry, ChargeMessage, MyFinance, Collection, Delinquent, FeeCell, FinanceConfig, FinanceOverview, ImportResult, Transparency } from './types'
+import type { CashEntry, ChargeMessage, DailyOverview, MyFinance, Collection, Delinquent, FeeCell, FinanceConfig, FinanceOverview, ImportResult, Transparency } from './types'
 
 const invalidateFinance = (qc: ReturnType<typeof useQueryClient>) => qc.invalidateQueries({ queryKey: ['finance'] })
 
@@ -8,6 +8,24 @@ export function useFinanceOverview(year: number) {
   return useQuery({
     queryKey: ['finance', 'overview', year],
     queryFn: () => api<FinanceOverview>(`/finance/overview?year=${year}`),
+  })
+}
+
+/** Diárias antecipadas dos diaristas por rodada de um mês (YYYY-MM). */
+export function useDailyOverview(month: string) {
+  return useQuery({ queryKey: ['finance', 'daily', month], queryFn: () => api<DailyOverview>(`/finance/daily?month=${month}-01`) })
+}
+
+/** Marca a diária de um diarista numa rodada como paga (ou desfaz). */
+export function usePayDaily() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ roundId, playerId, paid }: { roundId: number; playerId: number; paid: boolean }) =>
+      api(`/rounds/${roundId}/attendances/${playerId}/paid`, { method: 'PUT', body: json({ paid }) }),
+    onSuccess: () => {
+      invalidateFinance(qc)
+      qc.invalidateQueries({ queryKey: ['rounds'] })
+    },
   })
 }
 

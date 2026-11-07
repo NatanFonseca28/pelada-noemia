@@ -7,6 +7,7 @@ from app.schemas.round import (
     CheckinSet,
     DrawRequest,
     MoveRequest,
+    PaidSet,
     RoundCreate,
     RoundDetail,
     RoundSummary,
@@ -55,7 +56,7 @@ async def delete_round(round_id: int, admin: AdminUser, session: SessionDep, for
 async def set_my_attendance(round_id: int, data: AttendanceSet, user: CurrentUser, session: SessionDep):
     """O próprio jogador confirma ou cancela presença (lista precisa estar aberta)."""
     service = RoundService(session)
-    await service.set_my_attendance(round_id, data.confirmed, user)
+    await service.set_my_attendance(round_id, data.confirmed, user, data.role)
     return await service.detail(round_id, user)
 
 
@@ -63,7 +64,15 @@ async def set_my_attendance(round_id: int, data: AttendanceSet, user: CurrentUse
 async def set_attendance(round_id: int, player_id: int, data: AttendanceSet, admin: AdminUser, session: SessionDep):
     """ADMIN adiciona/remove confirmados (ex.: diarista que avisou pelo WhatsApp)."""
     service = RoundService(session)
-    await service.set_attendance(round_id, player_id, data.confirmed, admin, as_admin=True)
+    await service.set_attendance(round_id, player_id, data.confirmed, admin, as_admin=True, role=data.role)
+    return await service.detail(round_id, admin)
+
+
+@router.put("/{round_id}/attendances/{player_id}/paid", response_model=RoundDetail)
+async def set_attendance_paid(round_id: int, player_id: int, data: PaidSet, admin: AdminUser, session: SessionDep):
+    """ADMIN marca a diária antecipada do jogador nesta rodada como paga (ou desfaz)."""
+    service = RoundService(session)
+    await service.set_paid(round_id, player_id, data.paid, admin)
     return await service.detail(round_id, admin)
 
 

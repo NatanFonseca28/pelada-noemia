@@ -6,7 +6,7 @@ import { usePlayers } from '@/api/queries'
 import { useCurrentRound, useRound, useRoundActions, useRounds } from '@/api/rounds'
 import type { PlayerType, Position, RoundDetail } from '@/api/types'
 import { Alert, Card, EmptyState, PageHeader, PlayerName, Spinner, Tabs, TypeDot, TypeLegend, cx } from '@/components/ui'
-import { formatDate, positionShort, roundStatusLabel } from '@/lib/labels'
+import { formatDate, money, positionShort, roundStatusLabel } from '@/lib/labels'
 
 const errorText = (err: unknown) => (err instanceof ApiError ? err.message : 'Algo deu errado')
 
@@ -25,6 +25,9 @@ interface Row {
   primary_position: Position | null
   group: Group
   active: boolean
+  role?: 'LINHA' | 'GOLEIRO'
+  fee_amount?: string | null
+  paid?: boolean | null
 }
 
 type PlayersTab = 'MENSALISTA' | 'DIARISTA' | 'ISENTO' | 'INATIVOS'
@@ -47,13 +50,13 @@ const countTypes = (rows: Row[]) => ({
 
 function AttendanceBoard({ round }: { round: RoundDetail }) {
   const { data: players = [], isLoading } = usePlayers()
-  const { attendance, clearAttendance } = useRoundActions(round.id)
+  const { attendance, clearAttendance, paid } = useRoundActions(round.id)
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Group | null>(null)
   const [tab, setTab] = useState<PlayersTab>('MENSALISTA')
   const editable = round.status === 'ABERTA' || round.status === 'FECHADA'
-  const busy = attendance.isPending || clearAttendance.isPending
-  const error = attendance.error ?? clearAttendance.error
+  const busy = attendance.isPending || clearAttendance.isPending || paid.isPending
+  const error = attendance.error ?? clearAttendance.error ?? paid.error
 
   // `?? []`: API anterior não envia `absences` (site e API sobem em momentos diferentes)
   const rows = useMemo<Row[]>(() => {
@@ -136,6 +139,30 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
                     {list.map((r) => (
                       <li key={r.player_id} className="flex items-center gap-2 py-1.5">
                         <PlayerName name={r.name} type={r.type} className="flex-1 text-sm" />
+                        {r.group === 'VAI' && r.fee_amount ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => paid.mutate({ playerId: r.player_id, paid: !r.paid })}
+                            aria-pressed={!!r.paid}
+                            title={r.paid ? 'Diária paga (toque para desfazer)' : 'Marcar diária como paga'}
+                            className={cx('rounded-btn border px-2 py-1 text-xs font-medium disabled:opacity-60', r.paid ? 'border-primary text-primary-ink' : 'border-danger/40 text-danger-ink')}
+                          >
+                            {r.paid ? 'Pago' : `Pendente ${money(r.fee_amount)}`}
+                          </button>
+                        ) : null}
+                        {r.group === 'VAI' && r.primary_position !== 'GOLEIRO_FIXO' ? (
+                          <button
+                            type="button"
+                            disabled={!editable || busy}
+                            onClick={() => attendance.mutate({ playerId: r.player_id, confirmed: true, role: r.role === 'GOLEIRO' ? 'LINHA' : 'GOLEIRO' })}
+                            aria-pressed={r.role === 'GOLEIRO'}
+                            title="Vai só agarrar nesta rodada"
+                            className={cx('rounded-btn border px-2 py-1 text-xs font-medium disabled:opacity-60', r.role === 'GOLEIRO' ? 'border-primary bg-primary/10 text-primary-ink' : 'border-line text-muted hover:bg-soft')}
+                          >
+                            Agarra
+                          </button>
+                        ) : null}
                         <span className="w-8 text-xs text-muted">{r.primary_position ? positionShort[r.primary_position] : '—'}</span>
                         <div className="flex overflow-hidden rounded-btn border border-line text-xs" role="group" aria-label={`Presença de ${r.name}`}>
                           <ChoiceButton active={r.group === 'VAI'} disabled={!editable || busy} onClick={() => set(r, 'VAI')}

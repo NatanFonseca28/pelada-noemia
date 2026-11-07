@@ -35,10 +35,10 @@ async def confirm_all(client, headers, rid, ids):
 
 
 async def test_fluxo_completo_de_sorteio(client, admin_headers):
-    ids = await make_players(client, admin_headers, 16, 1)
+    ids = await make_players(client, admin_headers, 15, 1)
     rid = await new_round(client, admin_headers)
     detail = await confirm_all(client, admin_headers, rid, ids)
-    assert detail["confirmed_count"] == 17 and detail["status"] == "ABERTA"
+    assert detail["confirmed_count"] == 16 and detail["status"] == "ABERTA"
 
     r = await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)
     assert r.status_code == 200, r.text
@@ -46,7 +46,7 @@ async def test_fluxo_completo_de_sorteio(client, admin_headers):
     assert d["status"] == "FECHADA"  # sortear fecha a lista
     assert d["draw"]["mode"] == "CAMPEONATO" and len(d["teams"]) == 3
     # 1 goleiro fixo para 3 times: goleiro da pelada, fora dos times e fora de "não estão em time"
-    assert sum(len(t["players"]) for t in d["teams"]) == 16
+    assert sum(len(t["players"]) for t in d["teams"]) == 15
     assert len(d["shared_goalkeepers"]) == 1 and d["not_in_teams"] == []
     assert all(t["uses_shared_gk"] or t["has_rotation_gk"] for t in d["teams"])
     seed = d["draw"]["seed"]
@@ -140,8 +140,9 @@ async def test_formacao_alternativa_e_data_unica(client, admin_headers):
     ids = await make_players(client, admin_headers, 19)
     rid = await new_round(client, admin_headers)
     await confirm_all(client, admin_headers, rid, ids)
-    d = (await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)).json()
-    assert [a["num_teams"] for a in d["draw"]["alternatives"]] == [3, 4]
+    # 19 de linha: 3 times deixariam 1 de fora e reserva não existe → recusa e orienta
+    r = await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)
+    assert r.status_code == 422 and "não existe reserva" in r.json()["detail"]
     d = (await client.post(f"/api/rounds/{rid}/draw", json={"num_teams": 4}, headers=admin_headers)).json()
     assert len(d["teams"]) == 4
     assert (await client.post("/api/rounds", json={"date": "2026-10-07"}, headers=admin_headers)).status_code == 409
@@ -177,7 +178,7 @@ async def test_tres_estados_de_presenca(client, admin_headers, jogador_headers, 
     # Só admin, e só com a lista editável
     assert (await client.delete(f"/api/rounds/{rid}/attendances/{ids[1]}",
                                 headers=jogador_headers)).status_code == 403
-    await confirm_all(client, admin_headers, rid, ids[3:])
+    await confirm_all(client, admin_headers, rid, ids[:2] + ids[3:])  # 15 de linha: 3 times fechados
     await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)
     await client.post(f"/api/rounds/{rid}/lock", headers=admin_headers)
     assert (await client.delete(f"/api/rounds/{rid}/attendances/{ids[1]}",

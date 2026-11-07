@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.domain.draw import DEFAULT_LEVEL, DEFAULT_SPEED, DrawConfig, DrawError, DrawPlayer, new_seed, run_draw
-from app.models.enums import Position, UserRole
+from app.models.enums import PlayerType, Position, UserRole
 from app.models.match_event import MatchEvent
 from app.models.player import Player
 from app.models.round import (
@@ -38,6 +38,12 @@ from app.services.callroll_service import CallRollService
 from app.services.team_catalog_service import TeamCatalogService
 
 EDITABLE = {RoundStatus.ABERTA, RoundStatus.FECHADA}
+MAX_TEAM_SIZE = 6  # 5 na linha + 1 no gol (fixo ou revezando): reserva não existe, nenhum time passa de 6
+
+
+def is_goalkeeper(player: Player, role: str | None) -> bool:
+    """Goleiro nesta rodada: goleiro fixo do cadastro ou quem avisou que vai só agarrar."""
+    return role == "GOLEIRO" or player.primary_position == Position.GOLEIRO_FIXO
 
 
 class RoundService:
@@ -97,8 +103,8 @@ class RoundService:
 
         mode = draw.result.get("mode") if draw else None
         # Goleiro fixo confirmado e fora dos times = goleiro da pelada (agarra para todos)
-        shared_gks = [SimplePlayer(player_id=p.id, name=p.display_name) for _, p in confirmed
-                      if teams and p.id not in player_ids and p.primary_position == Position.GOLEIRO_FIXO]
+        shared_gks = [SimplePlayer(player_id=p.id, name=p.display_name) for a, p in confirmed
+                      if teams and p.id not in player_ids and is_goalkeeper(p, a.role)]
         team_out = []
         for t in teams:
             slots = sorted(
@@ -148,8 +154,8 @@ class RoundService:
 
         confirmed_ids = {p.id for _, p in confirmed}
         not_in_teams = [SimplePlayer(player_id=p.id, name=p.display_name)
-                        for _, p in confirmed if teams and p.id not in player_ids
-                        and p.primary_position != Position.GOLEIRO_FIXO]
+                        for a, p in confirmed if teams and p.id not in player_ids
+                        and not is_goalkeeper(p, a.role)]
         no_longer = [SimplePlayer(player_id=pid, name=players[pid].display_name)
                      for pid in player_ids if pid not in confirmed_ids]
 
@@ -163,8 +169,8 @@ class RoundService:
             notes=rnd.notes,
             confirmed_count=len(confirmed),
             has_teams=bool(teams),
-            attendances=[self._attendance_out(a, p) for a, p in confirmed],
-            absences=[self._attendance_out(a, p) for a, p in absent],
+            attendances=[self._attendance_out(a, p, viewer) for a, p in confirmed],
+            absences=[self._attendance_out(a, p, viewer) for a, p in absent],
             my_player_id=viewer.player_id,
             my_status=my_status,
             draw=DrawInfo(
@@ -259,7 +265,7 @@ class RoundService:
 
     # ---------------------------------------------------------- presença
     async def set_attendance(self, round_id: int, player_id: int, confirmed: bool, actor: User,
-                             as_admin: bool) -> None:
+                             as_admin: bool, role: str | None = None) -> None:
         rnd = await self._round(round_id)
         player = await self.session.get(Player, player_id)
         if player is None:
@@ -275,18 +281,48 @@ class RoundService:
         att = await self.session.scalar(
             select(Attendance).where(Attendance.round_id == rnd.id, Attendance.player_id == player_id)
         )
+        settings = await SettingsRepository(self.session).get_current()  # antes de criar a presença (autoflush)
         status = AttendanceStatus.CONFIRMADO if confirmed else AttendanceStatus.CANCELADO
         before = att.status.value if att else None
         if att is None:
             att = Attendance(round_id=rnd.id, player_id=player_id)
             self.session.add(att)
         att.status = status
+        # Papel: goleiro fixo é sempre goleiro; senão mantém o atual quando não vier no pedido
+        if player.primary_position == Position.GOLEIRO_FIXO:
+            att.role = "GOLEIRO"
+        elif role is not None:
+            att.role = role
+        elif att.role is None:
+            att.role = "LINHA"
+        if att.paid_at is None:  # diária já paga fica como está
+            att.fee_amount = self.fee_for(player, att.role, settings.daily_fee)
         att.source = AttendanceSource.ADMIN if as_admin else AttendanceSource.APP
         att.updated_by = actor.id
         att.updated_at = datetime.now(UTC)
         await audit_service.record(self.session, user_id=actor.id, action="ATTENDANCE", entity="round",
                                    entity_id=rnd.id, before={"player_id": player_id, "status": before},
-                                   after={"player_id": player_id, "status": status.value})
+                                   after={"player_id": player_id, "status": status.value, "role": att.role})
+        await self.session.commit()
+
+    @staticmethod
+    def fee_for(player: Player, role: str, daily_fee):
+        """Diária antecipada: só diarista que joga na linha paga. Quem vai só agarrar, mensalista e isento: 0."""
+        return daily_fee if player.type == PlayerType.DIARISTA and role != "GOLEIRO" else None
+
+    async def set_paid(self, round_id: int, player_id: int, paid: bool, actor: User) -> None:
+        """ADMIN marca a diária da rodada como paga (ou desfaz)."""
+        rnd = await self._round(round_id)
+        att = await self.session.scalar(
+            select(Attendance).where(Attendance.round_id == rnd.id, Attendance.player_id == player_id)
+        )
+        if att is None or not att.fee_amount:
+            raise ValidationError("Este jogador não tem diária a pagar nesta rodada")
+        before = att.paid_at is not None
+        att.paid_at = datetime.now(UTC) if paid else None
+        await audit_service.record(self.session, user_id=actor.id, action="PAYMENT", entity="round",
+                                   entity_id=rnd.id, before={"player_id": player_id, "paid": before},
+                                   after={"player_id": player_id, "paid": paid, "amount": str(att.fee_amount)})
         await self.session.commit()
 
     async def clear_attendance(self, round_id: int, player_id: int, actor: User) -> None:
@@ -306,10 +342,10 @@ class RoundService:
                                    after={"player_id": player_id, "status": None})
         await self.session.commit()
 
-    async def set_my_attendance(self, round_id: int, confirmed: bool, user: User) -> None:
+    async def set_my_attendance(self, round_id: int, confirmed: bool, user: User, role: str | None = None) -> None:
         if user.player_id is None:
             raise ValidationError("Seu usuário não está vinculado a um jogador. Fale com o administrador.")
-        await self.set_attendance(round_id, user.player_id, confirmed, user, as_admin=False)
+        await self.set_attendance(round_id, user.player_id, confirmed, user, as_admin=False, role=role)
 
     # ---------------------------------------------------------- sorteio
     async def draw(self, round_id: int, num_teams: int | None, seed: int | None, actor: User,
@@ -320,21 +356,24 @@ class RoundService:
         settings = await SettingsRepository(self.session).get_current()
         rows = (
             await self.session.execute(
-                select(Player)
+                select(Player, Attendance.role)
                 .join(Attendance, Attendance.player_id == Player.id)
                 .where(Attendance.round_id == rnd.id, Attendance.status == AttendanceStatus.CONFIRMADO)
             )
-        ).scalars().all()
+        ).all()
+        # "Vou só agarrar": nesta rodada o jogador entra como goleiro (agarra para todos ou é dono de time)
         players = [
             DrawPlayer(
                 id=p.id,
                 name=p.display_name,
-                primary=p.primary_position.value if p.primary_position else None,
-                secondary=p.secondary_position.value if p.secondary_position else None,
+                primary="GOLEIRO_FIXO" if is_goalkeeper(p, role) else (
+                    p.primary_position.value if p.primary_position else None),
+                secondary=None if is_goalkeeper(p, role) else (
+                    p.secondary_position.value if p.secondary_position else None),
                 level=p.skill_level,
                 speed=p.speed,
             )
-            for p in rows
+            for p, role in rows
         ]
         config = DrawConfig(
             line_per_team=settings.line_players_per_team,
@@ -406,8 +445,20 @@ class RoundService:
             team = await self.session.get(Team, team_id)
             if team is None or team.round_id != rnd.id:
                 raise NotFoundError("Time não encontrado nesta rodada")
+            members = await self.session.scalar(
+                select(func.count()).select_from(TeamPlayer)
+                .where(TeamPlayer.team_id == team.id, TeamPlayer.player_id != player_id)
+            )
+            if members >= MAX_TEAM_SIZE:
+                raise ValidationError(
+                    f"O Time {team.name} já tem {MAX_TEAM_SIZE} jogadores (5 na linha + 1 no gol). "
+                    "Não existe reserva: tire alguém do time antes ou refaça o sorteio."
+                )
             if tp is None:
-                is_gk = player.primary_position == Position.GOLEIRO_FIXO
+                att_role = await self.session.scalar(
+                    select(Attendance.role).where(Attendance.round_id == rnd.id, Attendance.player_id == player_id)
+                )
+                is_gk = is_goalkeeper(player, att_role)
                 tp = TeamPlayer(
                     round_id=rnd.id, player_id=player_id,
                     assigned_position=player.primary_position.value if player.primary_position else "ALA",
@@ -437,10 +488,14 @@ class RoundService:
         await self.session.commit()
 
     @staticmethod
-    def _attendance_out(a: Attendance, p: Player) -> AttendanceOut:
+    def _attendance_out(a: Attendance, p: Player, viewer: User) -> AttendanceOut:
+        # Diária só aparece para o admin e para o próprio jogador
+        sees_fee = viewer.role == UserRole.ADMIN or viewer.player_id == p.id
         return AttendanceOut(player_id=p.id, name=p.display_name, type=p.type,
                              primary_position=p.primary_position, source=a.source, updated_at=a.updated_at,
-                             checkin=a.checkin)
+                             checkin=a.checkin, role=a.role or "LINHA",
+                             fee_amount=a.fee_amount if sees_fee else None,
+                             paid=(a.paid_at is not None) if sees_fee and a.fee_amount else None)
 
     async def _loans(self, round_id: int, show_strength: bool) -> "tuple[list[LoanOut], list[UnfilledOut]]":
         data = await CallRollService(self.session).plan(round_id)

@@ -3,7 +3,7 @@ from collections import Counter
 
 import pytest
 
-from app.domain.draw import DrawConfig, DrawError, DrawPlayer, FilledBy, Mode, Role, run_draw
+from app.domain.draw import DrawConfig, DrawError, DrawPlayer, FilledBy, Mode, Role, run_draw, suggest_alternatives
 
 CFG = DrawConfig()
 
@@ -58,16 +58,21 @@ def test_menos_de_10_de_linha_e_bloqueado():
 
 # ---------- sobras de 1 a 4 ----------
 
-@pytest.mark.parametrize("extra", [1, 2, 3, 4])
+@pytest.mark.parametrize("extra", [1, 2, 3])
 def test_sobras_viram_revezamento_um_por_time(extra):
     players = make_players(zag=6, ala=6, ata=3 + extra)  # 15 + extra
     r = run_draw(players, CFG, seed=7)
     assert r.num_teams == 3
     rotation = [p for t in r.teams for p in t.players if p.role == Role.REVEZAMENTO]
     assert len(rotation) == min(extra, 3)  # no máximo um por time
-    assert len(r.reserves) == extra - len(rotation)
+    assert r.reserves == []
     assert all(t.line_count <= 6 for t in r.teams)
-    assert sorted(all_ids(r) + r.reserves) == [p.id for p in players]
+    assert sorted(all_ids(r)) == [p.id for p in players]
+
+
+def test_sobra_maior_que_um_por_time_e_recusada():
+    with pytest.raises(DrawError, match="não existe reserva"):
+        run_draw(make_players(zag=6, ala=6, ata=7), CFG, seed=7)  # 19 de linha: 3 times, 1 não cabe
 
 
 def test_pelada_normal_com_2_times_e_2_excedentes():
@@ -163,9 +168,11 @@ def test_mais_goleiros_que_times_sobram_como_goleiros_da_pelada():
 
 def test_um_goleiro_por_time_ninguem_reveza():
     for seed in range(20):
-        r = run_draw(make_players(zag=7, ala=6, ata=3, gk=3), CFG, seed=seed)  # 16 linha, 3 times, 3 goleiros
+        r = run_draw(make_players(zag=6, ala=6, ata=3, gk=3), CFG, seed=seed)  # 15 linha, 3 times, 3 goleiros
         assert all(t.has_fixed_gk and not t.has_rotation_gk and t.line_count == 5 for t in r.teams)
-        assert len(r.reserves) == 1 and r.shared_goalkeepers == []
+        assert r.reserves == [] and r.shared_goalkeepers == []
+    with pytest.raises(DrawError, match="não existe reserva"):  # 16 de linha: o 16º não caberia em time nenhum
+        run_draw(make_players(zag=7, ala=6, ata=3, gk=3), CFG, seed=1)
 
 
 def test_nivel_e_velocidade_de_goleiro_nao_entram_no_equilibrio():
@@ -206,44 +213,54 @@ def test_todos_sem_posicao_ainda_sorteia():
 
 # ---------- teto de 5 na linha + 1 no gol ----------
 
-def test_16_confirmados_com_2_goleiros_nao_passa_de_5_mais_1():
-    """14 de linha + 2 goleiros fixos: antes saíam 2 times com 7 na linha."""
+def test_16_confirmados_com_2_goleiros_e_recusado_sem_reserva():
+    """14 de linha + 2 goleiros fixos: sobrariam 4, e reserva não existe → sorteio recusado com orientação."""
     players = make_players(zag=6, ala=5, ata=3, gk=2)
-    r = run_draw(players, CFG, seed=1)
-    assert r.mode == Mode.PELADA_NORMAL and r.num_teams == 2
-    assert all(t.has_fixed_gk and t.line_count == 5 and not t.has_rotation_gk for t in r.teams)
-    assert len(r.reserves) == 4
-    assert any("reserva" in w for w in r.warnings)
-    assert sorted(all_ids(r) + r.reserves) == [p.id for p in players]
+    with pytest.raises(DrawError) as e:
+        run_draw(players, CFG, seed=1)
+    msg = str(e.value)
+    assert "não existe reserva" in msg and "Sobram 4" in msg
+    assert "Jogar com menos 1" in msg
+
+
+def test_orientacao_sugere_jogar_com_menos_1_quando_falta_um():
+    """14 de linha, 2 times: com "menos 1" fecham 3 times (5/5/4)."""
+    players = make_players(zag=6, ala=5, ata=3, gk=2)
+    with pytest.raises(DrawError) as e:
+        run_draw(players, CFG, seed=1, num_teams=2)
+    assert "Jogar com menos 1" in str(e.value)
+    r = run_draw(players, DrawConfig(allow_short_team=True), seed=1)
+    assert r.num_teams == 3 and r.reserves == []
 
 
 @pytest.mark.parametrize("line", range(10, 31))
 @pytest.mark.parametrize("gks", range(0, 5))
-def test_nenhum_time_passa_de_5_na_linha_mais_1_no_gol(line, gks):
+def test_nunca_reserva_nem_time_com_7(line, gks):
     zag, ala = line * 2 // 5, line * 2 // 5
     players = make_players(zag=zag, ala=ala, ata=line - zag - ala, gk=gks)
     try:
         r = run_draw(players, CFG, seed=line * 10 + gks)
     except DrawError:
-        assert line < 12 and gks + line - 10 < 2  # só bloqueia sem goleiro para os 2 times
-        return
+        return  # bloqueia: mínimo de goleiro, campeonato, ou sobra que não fecha time
+    assert r.reserves == []
     for t in r.teams:
         assert t.line_count <= (5 if t.has_fixed_gk else 6)
         assert sum(p.role == Role.REVEZAMENTO for p in t.players) <= (0 if t.has_fixed_gk else 1)
+        assert len(t.players) <= 6
     fives = sum(not t.has_rotation_gk for t in r.teams)  # times que ficam só com 5 na linha
     owned = sum(t.has_fixed_gk for t in r.teams)
     # goleiro fixo só ganha time quando os times de 5 não passam dos goleiros
     assert owned == (fives if gks and gks >= fives else 0)
     assert len(r.shared_goalkeepers) == gks - owned
     assert (fives == 0 and gks > 0) == any("não precisa de goleiro fixo" in w for w in r.warnings)
-    assert sorted(all_ids(r) + r.reserves + r.shared_goalkeepers) == [p.id for p in players]
+    assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
 
 
-def test_reservas_sao_sorteadas_entre_todos_e_seguem_a_seed():
-    players = make_players(zag=6, ala=5, ata=3, gk=2)
-    reserves = {tuple(run_draw(players, CFG, seed=s).reserves) for s in range(30)}
-    assert len({pid for rs in reserves for pid in rs}) > 6  # não é sempre o mesmo grupo
-    assert run_draw(players, CFG, seed=3).reserves == run_draw(players, CFG, seed=3).reserves
+def test_alternativas_nunca_deixam_reserva():
+    for line in range(10, 31):
+        for gks in range(0, 4):
+            for a in suggest_alternatives(line, CFG, gks):
+                assert "reserva" not in a.description
 
 
 # ---------- equilíbrio por nível e velocidade ----------
@@ -318,18 +335,17 @@ def test_seeds_diferentes_mudam_o_resultado():
 # ---------- alternativas (regra 10) ----------
 
 def test_sobra_grande_sugere_alternativas():
-    r = run_draw(make_players(zag=8, ala=7, ata=4), CFG, seed=1)  # 19 de linha
-    assert [(a.num_teams, a.line_sizes) for a in r.alternatives] == [(3, [6, 6, 6]), (4, [5, 5, 5, 4])]
-    assert "1 reserva" in r.alternatives[0].description
+    with pytest.raises(DrawError, match="Jogar com menos 1"):  # 19 de linha: 3 times deixariam 1 de fora
+        run_draw(make_players(zag=8, ala=7, ata=4), CFG, seed=1)
+    assert [(a.num_teams, a.line_sizes) for a in suggest_alternatives(19, CFG)] == [(4, [5, 5, 5, 4])]
     r4 = run_draw(make_players(zag=8, ala=7, ata=4), CFG, seed=1, num_teams=4)
     assert sorted(t.line_count for t in r4.teams) == [4, 5, 5, 5]
     assert r4.alternatives == []
 
 
 def test_14_de_linha_nao_sugere_3_times():
-    r = run_draw(make_players(zag=6, ala=5, ata=3), CFG, seed=1)
-    assert r.mode == Mode.PELADA_NORMAL
-    assert [a.num_teams for a in r.alternatives] == [2]
+    with pytest.raises(DrawError, match="não existe reserva"):  # 14 de linha, sem goleiro: 4 não cabem em 2 times
+        run_draw(make_players(zag=6, ala=5, ata=3), CFG, seed=1)
     with pytest.raises(DrawError, match="Campeonato exige"):
         run_draw(make_players(zag=6, ala=5, ata=3), CFG, seed=1, num_teams=3)
 
@@ -347,7 +363,7 @@ def test_um_a_menos_forma_3_times_com_14_de_linha_e_2_goleiros():
     assert r.reserves == []
     assert any("um a menos" in i and "time que está de fora" in i for i in r.infos)
     assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
-    assert [a.num_teams for a in r.alternatives] == [2, 3]
+    assert [a.num_teams for a in r.alternatives] == [3]
 
 
 def test_um_a_menos_com_19_de_linha_forma_4_times():
@@ -356,8 +372,9 @@ def test_um_a_menos_com_19_de_linha_forma_4_times():
 
 
 def test_um_a_menos_nao_muda_quando_falta_mais_de_um():
-    r = run_draw(make_players(zag=5, ala=5, ata=3), SHORT, seed=1)  # 13 de linha: 3 times exigiria 2 a menos
-    assert r.num_teams == 2
+    # 13 de linha: 3 times exigiria 2 a menos, e 2 times deixariam 1 de fora
+    with pytest.raises(DrawError, match="Confirme mais 1"):
+        run_draw(make_players(zag=5, ala=5, ata=3), SHORT, seed=1)
 
 
 def test_um_a_menos_nao_vale_para_2_times():
@@ -365,9 +382,9 @@ def test_um_a_menos_nao_vale_para_2_times():
         run_draw(make_players(zag=4, ala=3, ata=2, gk=2), SHORT, seed=1)  # 9 de linha
 
 
-def test_sem_a_opcao_14_de_linha_continua_com_2_times():
-    r = run_draw(make_players(zag=6, ala=5, ata=3, gk=2), CFG, seed=1)
-    assert r.num_teams == 2 and len(r.reserves) == 4
+def test_sem_a_opcao_14_de_linha_e_recusado():
+    with pytest.raises(DrawError, match="não existe reserva"):
+        run_draw(make_players(zag=6, ala=5, ata=3, gk=2), CFG, seed=1)
 
 
 def test_jogador_repetido():

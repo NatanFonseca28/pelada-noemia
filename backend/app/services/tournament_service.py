@@ -2,7 +2,7 @@ import random
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
@@ -368,7 +368,7 @@ class TournamentService:
         gks = list((await self.session.execute(
             select(Player).join(Attendance, Attendance.player_id == Player.id).where(
                 Attendance.round_id == round_id, Attendance.status == AttendanceStatus.CONFIRMADO,
-                Player.primary_position == Position.GOLEIRO_FIXO,
+                or_(Player.primary_position == Position.GOLEIRO_FIXO, Attendance.role == "GOLEIRO"),
             )
         )).scalars())
         gks = sorted((g for g in gks if g.id not in placed), key=lambda g: g.display_name)
