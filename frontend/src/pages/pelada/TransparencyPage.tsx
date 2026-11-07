@@ -3,6 +3,7 @@ import { Check, Landmark } from 'lucide-react'
 import { useTransparency } from '@/api/finance'
 import type { MyMonthStatus, Transparency } from '@/api/types'
 import { Card, EmptyState, ICON_STROKE, PageHeader, QueryState, SkeletonList, cx } from '@/components/ui'
+import { YearFilter } from '@/components/YearFilter'
 import { cashCategoryLabel, monthAbbr, monthLong, money } from '@/lib/labels'
 
 const monthKey = (iso: string) => iso.slice(0, 7)
@@ -156,9 +157,7 @@ export function TransparencyPage() {
         title="Transparência"
         subtitle="Para onde vai o dinheiro da pelada"
         actions={
-          <select className="input w-auto" value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Ano">
-            {[thisYear, thisYear - 1].map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <YearFilter value={year} onChange={setYear} />
         }
       />
       <QueryState

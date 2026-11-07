@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError, ValidationError
 from app.domain.draw import DEFAULT_LEVEL, DEFAULT_SPEED
 from app.domain.loans import Loan, LoanMatch, LoanPlan, LoanPlayer, plan_loans
+from app.core.year_lock import ensure_open
 from app.models.player import Player
 from app.models.round import Attendance, AttendanceStatus, Round, RoundStatus, Team, TeamPlayer
 from app.models.tournament import Match, MatchLoan, MatchStatus, Tournament
@@ -38,6 +39,7 @@ class CallRollService:
     # ---------------------------------------------------------- chamada
     async def set_checkin(self, round_id: int, player_id: int, status: str | None, actor: User) -> None:
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         att = await self.session.scalar(
             select(Attendance).where(Attendance.round_id == rnd.id, Attendance.player_id == player_id,
                                      Attendance.status == AttendanceStatus.CONFIRMADO)
@@ -55,6 +57,7 @@ class CallRollService:
     async def all_present(self, round_id: int, actor: User) -> None:
         """Marca como presente todo confirmado ainda não chamado (não mexe em quem já foi marcado)."""
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         rows = list(await self.session.scalars(
             select(Attendance).where(Attendance.round_id == rnd.id, Attendance.status == AttendanceStatus.CONFIRMADO,
                                      Attendance.checkin.is_(None))

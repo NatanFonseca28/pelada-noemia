@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, File, Query, UploadFile, status
 
+from app.core.year_lock import FIRST_YEAR
 from app.core.deps import AdminUser, CurrentUser, SessionDep, SuperAdminUser
 from app.core.errors import ValidationError
 from app.schemas.finance import (
@@ -34,7 +35,7 @@ MAX_SHEET_BYTES = 5 * 1024 * 1024
 
 
 def _year(year: int | None) -> int:
-    return year or date.today().year
+    return year or today_local().year
 
 
 @router.get("/daily", response_model=DailyOverview)
@@ -44,19 +45,19 @@ async def daily(admin: AdminUser, session: SessionDep, month: date | None = Quer
 
 
 @router.get("/overview", response_model=FinanceOverview)
-async def overview(admin: AdminUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+async def overview(admin: AdminUser, session: SessionDep, year: int | None = Query(None, ge=FIRST_YEAR, le=2100)):
     """Grade de mensalidades do ano, resumo mensal e saldo do caixa."""
     return await FinanceService(session).overview(_year(year))
 
 
 @router.get("/me", response_model=MyFinanceOut)
-async def my_finance(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+async def my_finance(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=FIRST_YEAR, le=2100)):
     """Mensalidades do próprio jogador (qualquer usuário logado; só os dados dele)."""
     return await FinanceService(session).my_finance(user, year or today_local().year)
 
 
 @router.get("/transparency", response_model=TransparencyOut)
-async def transparency(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+async def transparency(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=FIRST_YEAR, le=2100)):
     """Portal da transparência (qualquer usuário logado): saldo, resumo mensal, despesas e situação dos
     mensalistas mês a mês, sem valores individuais nem contatos."""
     return await FinanceService(session).transparency(_year(year))
@@ -109,7 +110,7 @@ async def set_fee(data: FeeCellIn, admin: AdminUser, session: SessionDep):
 
 
 @router.get("/entries", response_model=list[CashEntryOut])
-async def list_entries(admin: AdminUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+async def list_entries(admin: AdminUser, session: SessionDep, year: int | None = Query(None, ge=FIRST_YEAR, le=2100)):
     return await FinanceService(session).list_entries(_year(year))
 
 

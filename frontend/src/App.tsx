@@ -22,6 +22,7 @@ const MyAreaPage = named(() => import('@/pages/pelada/MyAreaPage'), 'MyAreaPage'
 const TransparencyPage = named(() => import('@/pages/pelada/TransparencyPage'), 'TransparencyPage')
 const AccountPage = named(() => import('@/pages/AccountPage'), 'AccountPage')
 const DashboardPage = named(() => import('@/pages/gestao/DashboardPage'), 'DashboardPage')
+const YearSummaryPage = named(() => import('@/pages/gestao/YearSummaryPage'), 'YearSummaryPage')
 const RoundsPage = named(() => import('@/pages/gestao/RoundsPage'), 'RoundsPage')
 const RoundPage = named(() => import('@/pages/gestao/RoundPage'), 'RoundPage')
 const AttendancePage = named(() => import('@/pages/gestao/AttendancePage'), 'AttendancePage')
@@ -66,6 +67,7 @@ export function App() {
           <Route path="gestao" element={<RequireAuth roles={['ADMIN']} />}>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="fechamento" element={<YearSummaryPage />} />
             <Route path="rodadas" element={<RoundsPage />} />
             <Route path="rodadas/:id" element={<RoundPage />} />
             <Route path="presenca" element={<AttendancePage />} />

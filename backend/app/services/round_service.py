@@ -4,6 +4,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from app.core.year_lock import ensure_open
 from app.domain.draw import (
     DEFAULT_LEVEL,
     DEFAULT_SPEED,
@@ -207,6 +208,7 @@ class RoundService:
 
     # ---------------------------------------------------------- rodada
     async def create(self, round_date, notes: str | None, actor: User) -> Round:
+        ensure_open(round_date, actor)
         if await self.session.scalar(select(Round).where(Round.date == round_date)):
             raise ConflictError("Já existe uma rodada nessa data")
         settings = await SettingsRepository(self.session).get_current()
@@ -221,6 +223,7 @@ class RoundService:
 
     async def set_status(self, round_id: int, action: str, actor: User) -> None:
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         transitions = {
             "open": ({RoundStatus.FECHADA}, RoundStatus.ABERTA),
             "close": ({RoundStatus.ABERTA}, RoundStatus.FECHADA),
@@ -246,6 +249,7 @@ class RoundService:
         """Exclui a rodada. Rodada travada/encerrada só com `force`: apaga junto presenças, sorteios, times,
         campeonato, partidas e súmula (cascata do banco). Mensalidades e caixa não têm vínculo e ficam intactos."""
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         played = rnd.status in (RoundStatus.TIMES_TRAVADOS, RoundStatus.ENCERRADA)
         if played and not force:
             raise ValidationError("Rodada já realizada: confirme a exclusão definitiva (apaga campeonato e súmulas)")
@@ -278,6 +282,7 @@ class RoundService:
     async def set_attendance(self, round_id: int, player_id: int, confirmed: bool, actor: User,
                              as_admin: bool, role: str | None = None) -> None:
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         player = await self.session.get(Player, player_id)
         if player is None:
             raise NotFoundError("Jogador não encontrado")
@@ -324,6 +329,7 @@ class RoundService:
     async def set_paid(self, round_id: int, player_id: int, paid: bool, actor: User) -> None:
         """ADMIN marca a diária da rodada como paga (ou desfaz)."""
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         att = await self.session.scalar(
             select(Attendance).where(Attendance.round_id == rnd.id, Attendance.player_id == player_id)
         )
@@ -339,6 +345,7 @@ class RoundService:
     async def clear_attendance(self, round_id: int, player_id: int, actor: User) -> None:
         """ADMIN volta o jogador para "sem resposta" (apaga o registro de presença)."""
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         if rnd.status not in EDITABLE:
             raise ValidationError("Times travados: destrave para alterar a lista")
         att = await self.session.scalar(
@@ -362,6 +369,7 @@ class RoundService:
     async def draw(self, round_id: int, num_teams: int | None, seed: int | None, actor: User,
                    allow_short_team: bool = False, competition: str | None = None) -> None:
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         if rnd.status not in EDITABLE:
             raise ValidationError("Times travados: destrave para sortear novamente")
         settings = await SettingsRepository(self.session).get_current()
@@ -458,6 +466,7 @@ class RoundService:
     async def move(self, round_id: int, player_id: int, team_id: int | None, role: TeamRole | None,
                    actor: User) -> None:
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         if rnd.status not in EDITABLE:
             raise ValidationError("Times travados: destrave para ajustar")
         player = await self.session.get(Player, player_id)

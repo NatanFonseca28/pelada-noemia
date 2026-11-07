@@ -31,6 +31,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
+import { FIRST_YEAR, isClosedYear } from '@/lib/years'
 import { DailyTab } from '@/components/finance/DailyTab'
 import { ChargePanel } from '@/components/finance/ChargePanel'
 import { FinanceChart } from '@/components/finance/FinanceChart'
@@ -911,9 +912,10 @@ export function FinancePage() {
         title="Financeiro"
         actions={
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setYear(year - 1)} aria-label="Ano anterior"><ChevronLeft size={18} strokeWidth={ICON_STROKE} /></Button>
+            <Button variant="ghost" size="sm" onClick={() => setYear(year - 1)} disabled={year <= FIRST_YEAR} aria-label="Ano anterior"><ChevronLeft size={18} strokeWidth={ICON_STROKE} /></Button>
             <span className="tabular w-14 text-center font-display font-semibold">{year}</span>
-            <Button variant="ghost" size="sm" onClick={() => setYear(year + 1)} aria-label="Próximo ano"><ChevronRight size={18} strokeWidth={ICON_STROKE} /></Button>
+            <Button variant="ghost" size="sm" onClick={() => setYear(year + 1)} disabled={year >= new Date().getFullYear()} aria-label="Próximo ano"><ChevronRight size={18} strokeWidth={ICON_STROKE} /></Button>
+            {isClosedYear(year) && <Badge color="gray">fechado · somente leitura</Badge>}
           </div>
         }
       />

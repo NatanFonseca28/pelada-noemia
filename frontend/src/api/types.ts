@@ -680,3 +680,18 @@ export interface DrawPreview {
   detail: string
   options: { kind: 'SHORT' | 'TEAMS' | 'INFO'; label: string; num_teams: number | null; allow_short_team: boolean }[]
 }
+
+/** Fechamento do ano: jogos, dinheiro e o saldo que vira o saldo inicial do ano seguinte. */
+export interface YearSummary {
+  year: number
+  closed: boolean
+  partial: boolean
+  season: Dashboard['season']
+  fees_total: string
+  daily_total: string
+  other_income: string
+  expenses: string
+  net: string
+  opening_balance: string
+  closing_balance: string
+}

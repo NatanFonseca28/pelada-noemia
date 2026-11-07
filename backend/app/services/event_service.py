@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError, ValidationError
 from app.domain.formats import Stage
 from app.domain.standings import KnockoutResult, TieRuleError, campaign_ranking, knockout_winner
+from app.core.year_lock import ensure_match_open
 from app.models.match_event import EventType, MatchEvent
 from app.models.player import Player
 from app.models.round import TeamPlayer
@@ -70,6 +71,7 @@ class EventService:
     # ---------------------------------------------------------- escrita
     async def add(self, match_id: int, data: EventIn, actor: User) -> MatchSheet:
         m = await self._match(match_id)
+        await ensure_match_open(self.session, m.id, actor)
         # Idempotência: reenvio do mesmo client_event_id devolve o estado atual sem duplicar
         existing = await self.session.scalar(select(MatchEvent).where(
             MatchEvent.match_id == m.id, MatchEvent.client_event_id == data.client_event_id))
@@ -103,6 +105,7 @@ class EventService:
         event = await self.session.get(MatchEvent, event_id)
         if event is None:
             raise NotFoundError("Evento não encontrado")
+        await ensure_match_open(self.session, event.match_id, actor)
         if event.deleted_at is None:
             event.deleted_at = datetime.now(UTC)
             await audit_service.record(self.session, user_id=actor.id, action="DELETE", entity="match_event",

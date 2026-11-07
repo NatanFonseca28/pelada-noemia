@@ -7,6 +7,7 @@ from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
+from app.core.year_lock import ensure_open
 from app.domain.charge_message import CHARGE_VARIABLES, DEFAULT_CHARGE_MESSAGE
 from app.domain.delinquency import (
     OUT_MARKER,
@@ -342,21 +343,30 @@ class FinanceService:
         await self.session.commit()
         return await self.charge_message()
 
-    async def balance(self, config: FinanceConfig | None = None) -> Decimal:
-        """Saldo = saldo inicial + (mensalidades + entradas − saídas) a partir do mês de abertura."""
+    async def balance(self, config: FinanceConfig | None = None, until: date | None = None) -> Decimal:
+        """Saldo = saldo inicial + (mensalidades + entradas − saídas) a partir do mês de abertura.
+
+        `until`: saldo até esse dia (inclusive), usado no fechamento do ano. Antes do mês de abertura o saldo é 0."""
         config = config or await self.get_config()
         start = config.finance_opening_month or date(1900, 1, 1)
-        fees = await self.session.scalar(
-            select(func.coalesce(func.sum(MonthlyFee.amount), 0)).where(MonthlyFee.month >= start)
-        )
+        if until is not None and until < start:
+            return ZERO
+        fee_q = select(func.coalesce(func.sum(MonthlyFee.amount), 0)).where(MonthlyFee.month >= start)
         signed = func.sum(case((CashEntry.kind == CashKind.ENTRADA, CashEntry.amount), else_=-CashEntry.amount))
-        entries = await self.session.scalar(select(func.coalesce(signed, 0)).where(CashEntry.month >= start))
-        daily = await self.session.scalar(
+        entry_q = select(func.coalesce(signed, 0)).where(CashEntry.month >= start)
+        daily_q = (
             select(func.coalesce(func.sum(Attendance.fee_amount), 0))
             .join(Round, Round.id == Attendance.round_id)
             .where(Attendance.paid_at.is_not(None), Attendance.status == AttendanceStatus.CONFIRMADO,
                    Round.date >= start)
         )
+        if until is not None:
+            fee_q = fee_q.where(MonthlyFee.month <= until)
+            entry_q = entry_q.where(CashEntry.month <= until)
+            daily_q = daily_q.where(Round.date <= until)
+        fees = await self.session.scalar(fee_q)
+        entries = await self.session.scalar(entry_q)
+        daily = await self.session.scalar(daily_q)
         return (config.finance_opening_balance + Decimal(fees) + Decimal(entries) + Decimal(daily)).quantize(
             Decimal("0.01"))
 
@@ -403,6 +413,7 @@ class FinanceService:
 
     # ---------- Mensalidades ----------
     async def set_fee(self, data: FeeCellIn, actor: User) -> FeeCellOut | None:
+        ensure_open(data.month, actor)
         if await self.session.get(Player, data.player_id) is None:
             raise NotFoundError("Jogador não encontrado")
         fee = await self.session.scalar(
@@ -447,6 +458,7 @@ class FinanceService:
         )
 
     async def create_entry(self, data: CashEntryIn, actor: User) -> CashEntry:
+        ensure_open(data.month, actor)
         entry = CashEntry(**data.model_dump())
         self.session.add(entry)
         await self.session.flush()
@@ -459,6 +471,8 @@ class FinanceService:
 
     async def update_entry(self, entry_id: int, data: CashEntryIn, actor: User) -> CashEntry:
         entry = await self._entry(entry_id)
+        ensure_open(entry.month, actor)
+        ensure_open(data.month, actor)
         before = audit_service.snapshot(entry)
         for k, v in data.model_dump().items():
             setattr(entry, k, v)
@@ -472,6 +486,7 @@ class FinanceService:
 
     async def delete_entry(self, entry_id: int, actor: User) -> None:
         entry = await self._entry(entry_id)
+        ensure_open(entry.month, actor)
         await audit_service.record(
             self.session, user_id=actor.id, action="DELETE", entity="cash_entry", entity_id=entry.id,
             before=audit_service.snapshot(entry),

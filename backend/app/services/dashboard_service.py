@@ -23,6 +23,7 @@ from app.schemas.dashboard import (
     RoundNumbers,
     SeasonNumbers,
     SquadNumbers,
+    YearSummaryOut,
 )
 from app.services.finance_service import FinanceService, today_local
 from app.services.round_service import RoundService
@@ -103,6 +104,28 @@ class DashboardService:
         return RoundNumbers(
             id=rnd.id, date=rnd.date, status=rnd.status.value, confirmed=len(confirmed),
             goalkeepers=sum(1 for p, role in confirmed if p == Position.GOLEIRO_FIXO or role == "GOLEIRO"), teams=teams, tournament_id=tournament_id,
+        )
+
+    async def year_summary(self, year: int) -> YearSummaryOut:
+        fin = FinanceService(self.session)
+        overview = await fin.overview(year)
+        daily = sum((await fin.daily_paid_by_month(year)).values(), ZERO)
+        fees = sum((s.fees for s in overview.summary), ZERO)
+        income = sum((s.income for s in overview.summary), ZERO)
+        expenses = sum((s.expenses for s in overview.summary), ZERO)
+        config = overview.config
+        return YearSummaryOut(
+            year=year,
+            closed=year < today_local().year,
+            partial=year >= today_local().year,
+            season=await self._season(year),
+            fees_total=fees,
+            daily_total=daily,
+            other_income=income - daily,
+            expenses=expenses,
+            net=fees + income - expenses,
+            opening_balance=await fin.balance(config, until=date(year - 1, 12, 31)),
+            closing_balance=await fin.balance(config, until=date(year, 12, 31)),
         )
 
     async def _season(self, year: int) -> SeasonNumbers:

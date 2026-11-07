@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.domain.finance_sheet import ParsedSheet, SheetFormatError, clean_player_name, normalize, parse_rows
+from app.core.year_lock import ensure_open
 from app.models.enums import PlayerType, Position
 from app.models.finance import CashCategory, CashEntry, CashKind, CollectionItem, FinanceCollection, MonthlyFee
 from app.models.player import Player
@@ -63,6 +64,9 @@ class FinanceImportService:
         self.session = session
 
     async def import_sheet(self, sheet: ParsedSheet, actor: User | None) -> ImportResult:
+        months = {m for cells in sheet.fees.values() for m in cells} | set(sheet.extra_income)
+        for m in sorted(months):
+            ensure_open(m, actor)  # a planilha não reescreve meses de ano fechado
         players = list(await self.session.scalars(select(Player)))
         index: dict[str, Player] = {}
         for p in players:

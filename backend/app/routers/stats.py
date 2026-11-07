@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query
 
+from app.core.year_lock import FIRST_YEAR
 from app.core.deps import CurrentUser, SessionDep, StaffUser
 from app.schemas.event import EventIn, MatchSheet
 from app.schemas.stats import PlayerProfile, PlayerStats, TournamentSummary
@@ -28,7 +29,7 @@ async def delete_event(event_id: int, staff: StaffUser, session: SessionDep):
 
 
 @router.get("/stats/players", response_model=list[PlayerStats])
-async def players_stats(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=2000, le=2100)):
+async def players_stats(user: CurrentUser, session: SessionDep, year: int | None = Query(None, ge=FIRST_YEAR, le=2100)):
     """Rankings históricos (ou de um ano): artilharia, assistências, cartões, presenças, aproveitamento, títulos."""
     return await StatsService(session).players(year)
 

@@ -52,6 +52,22 @@ class SeasonNumbers(BaseModel):
     best_win_rate: Highlight | None
 
 
+class YearSummaryOut(BaseModel):
+    """Fechamento do ano: jogos, campeão, dinheiro e o saldo que vira o saldo inicial do ano seguinte."""
+
+    year: int
+    closed: bool  # ano já terminou (só leitura para admin)
+    partial: bool  # ano em andamento: números parciais
+    season: SeasonNumbers
+    fees_total: Decimal  # mensalidades recebidas
+    daily_total: Decimal  # diárias antecipadas pagas
+    other_income: Decimal  # outras entradas do caixa
+    expenses: Decimal
+    net: Decimal  # entradas - saídas do ano
+    opening_balance: Decimal  # saldo no início do ano
+    closing_balance: Decimal  # saldo no fim do ano = saldo inicial do ano seguinte
+
+
 class Pending(BaseModel):
     pending_users: int
     players_without_position: int

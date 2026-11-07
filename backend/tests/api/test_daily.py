@@ -99,3 +99,49 @@ async def test_time_nunca_passa_de_6(client, admin_headers):
     r = await client.post(f"/api/rounds/{rid}/move", json={"player_id": second, "team_id": team_b["id"]},
                           headers=admin_headers)
     assert r.status_code == 422 and "não existe reserva" in r.json()["detail"].lower()
+
+
+# ---------- fechamento do ano ----------
+
+async def test_ano_fechado_e_somente_leitura_para_admin(client, admin_headers, superadmin_headers, monkeypatch):
+    from datetime import date
+
+    from app.core import year_lock
+
+    pid = await player(client, admin_headers, "Fechamento", "MENSALISTA")
+    fee = {"player_id": pid, "month": "2026-06-01", "amount": "50", "marker": None, "settled": False}
+    assert (await client.put("/api/finance/fees", json=fee, headers=admin_headers)).status_code == 200
+
+    # 31/12/2026 ainda é 2026: aberto
+    monkeypatch.setattr(year_lock, "today", lambda: date(2026, 12, 31))
+    assert (await client.put("/api/finance/fees", json={**fee, "amount": "55"}, headers=admin_headers)).status_code == 200
+
+    # 01/01/2027: 2026 fechado para admin, liberado para superadmin
+    monkeypatch.setattr(year_lock, "today", lambda: date(2027, 1, 1))
+    r = await client.put("/api/finance/fees", json={**fee, "amount": "60"}, headers=admin_headers)
+    assert r.status_code == 422 and "fechado" in r.json()["detail"]
+    assert (await client.put("/api/finance/fees", json={**fee, "amount": "60"}, headers=superadmin_headers)).status_code == 200
+    r = await client.post("/api/rounds", json={"date": "2026-06-23"}, headers=admin_headers)
+    assert r.status_code == 422
+    # carência: dezembro de 2026 segue editável até 31/01/2027 (pagamento tardio)
+    dec = {**fee, "month": "2026-12-01", "amount": "50"}
+    assert (await client.put("/api/finance/fees", json=dec, headers=admin_headers)).status_code == 200
+    monkeypatch.setattr(year_lock, "today", lambda: date(2027, 2, 1))
+    assert (await client.put("/api/finance/fees", json={**dec, "amount": "60"}, headers=admin_headers)).status_code == 422
+
+
+async def test_resumo_do_ano_e_saldo_que_segue(client, admin_headers):
+    await client.put("/api/finance/config", json={"monthly_fee": "50", "daily_fee": "20",
+                                                  "finance_opening_balance": "100", "finance_opening_month": "2026-01-01"},
+                     headers=admin_headers)
+    pid = await player(client, admin_headers, "Resumo", "MENSALISTA")
+    await client.put("/api/finance/fees", json={"player_id": pid, "month": "2026-03-01", "amount": "50",
+                                                "marker": None, "settled": False}, headers=admin_headers)
+    await client.post("/api/finance/entries", json={"month": "2026-04-01", "kind": "SAIDA", "category": "CAMPO",
+                                                    "description": "Campo", "amount": "30"}, headers=admin_headers)
+    d = (await client.get("/api/dashboard/year-summary", params={"year": 2026}, headers=admin_headers)).json()
+    assert d["fees_total"] == "50.00" and d["expenses"] == "30.00" and d["net"] == "20.00"
+    assert d["opening_balance"] == "0.00" and d["closing_balance"] == "120.00"  # 100 + 50 - 30
+    nxt = (await client.get("/api/dashboard/year-summary", params={"year": 2027}, headers=admin_headers)).json()
+    assert nxt["opening_balance"] == d["closing_balance"]
+    assert (await client.get("/api/dashboard/year-summary", params={"year": 2025}, headers=admin_headers)).status_code == 422

@@ -5,6 +5,7 @@ import type { PlayerStats } from '@/api/types'
 import { Avatar, Card, EmptyState, PageHeader, PlayerName, Spinner, cx } from '@/components/ui'
 import { ShareButton } from '@/components/ShareButton'
 import { statsText } from '@/lib/share'
+import { yearOptions } from '@/lib/years'
 
 type Key = keyof Pick<PlayerStats, 'goals' | 'assists' | 'presences' | 'win_rate' | 'titles' | 'yellows' | 'matches'>
 
@@ -33,7 +34,6 @@ const COLUMNS: { key: keyof PlayerStats; label: string; title: string }[] = [
 ]
 
 export function StatsPage() {
-  const thisYear = new Date().getFullYear()
   const [year, setYear] = useState<number | null>(null)
   const [tab, setTab] = useState(RANKINGS[0].id)
   const { data, isLoading } = usePlayerStats(year)
@@ -72,7 +72,7 @@ export function StatsPage() {
           )}
           <select className="input w-auto" value={year ?? ''} onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)} aria-label="Período">
             <option value="">Todos os tempos</option>
-            {[thisYear, thisYear - 1, thisYear - 2].map((y) => (
+            {yearOptions().map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>

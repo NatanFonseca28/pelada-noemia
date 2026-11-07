@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import {
   ArrowDownToLine,
+  CalendarRange,
   BarChart3,
   CalendarCheck,
   CircleUserRound,
@@ -68,6 +69,7 @@ const GESTAO: NavItem[] = [
   { to: '/gestao/usuarios', label: 'Usuários', icon: Users },
   { to: '/gestao/financeiro', label: 'Financeiro', icon: Wallet },
   { to: '/gestao/configuracoes', label: 'Configurações', icon: Settings },
+  { to: '/gestao/fechamento', label: 'Fechamento do ano', icon: CalendarRange },
   { to: '/gestao/exportar', label: 'Exportar dados', icon: ArrowDownToLine },
 ]
 

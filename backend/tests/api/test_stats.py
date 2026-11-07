@@ -126,7 +126,7 @@ async def test_estatisticas_e_resumo(client, admin_headers, jogador_headers):
     (h,) = profile["history"]
     assert h["round_id"] == rid and h["champion"] and h["goals"] == 2
 
-    assert (await client.get("/api/stats/players", params={"year": 2020}, headers=jogador_headers)).json() == []
+    assert (await client.get("/api/stats/players", params={"year": 2099}, headers=jogador_headers)).json() == []
     # Jogador não registra eventos
     r = await client.post(f"/api/matches/{final['id']}/events", json=ev("GOL", order[0]), headers=jogador_headers)
     assert r.status_code == 403

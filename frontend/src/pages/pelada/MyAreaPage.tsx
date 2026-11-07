@@ -6,6 +6,7 @@ import type { MyFinance, MyMonthStatus } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { useToast } from '@/contexts/feedback'
 import { Button, Card, EmptyState, ICON_STROKE, PageHeader, QueryState, SkeletonList, TypeBadge, cx } from '@/components/ui'
+import { YearFilter } from '@/components/YearFilter'
 import { monthAbbr, money } from '@/lib/labels'
 
 const statusText: Record<MyMonthStatus, string> = {
@@ -120,9 +121,7 @@ export function MyAreaPage() {
       <PageHeader
         title="Minha área"
         actions={
-          <select className="input w-auto" value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Ano">
-            {[thisYear, thisYear - 1].map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <YearFilter value={year} onChange={setYear} />
         }
       />
       <QueryState

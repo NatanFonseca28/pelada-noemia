@@ -20,6 +20,7 @@ from app.domain.standings import (
     knockout_winner,
     resolve_source,
 )
+from app.core.year_lock import ensure_open, ensure_round_open
 from app.models.enums import Position
 from app.models.player import Player
 from app.models.round import Attendance, AttendanceStatus, Round, RoundStatus, Team, TeamPlayer, TeamRole
@@ -99,6 +100,7 @@ class TournamentService:
     async def create(self, round_id: int, format_code: str, final_weight: Decimal | None, actor: User,
                      legs: int = 1) -> Tournament:
         rnd = await self._round(round_id)
+        ensure_open(rnd.date, actor)
         if rnd.status != RoundStatus.TIMES_TRAVADOS:
             raise ValidationError("Trave os times antes de criar o campeonato")
         if await self.session.scalar(select(Tournament.id).where(Tournament.round_id == rnd.id)):
@@ -185,6 +187,7 @@ class TournamentService:
 
     async def add_casual_match(self, tournament_id: int, actor: User) -> None:
         t = await self._tournament(tournament_id)
+        await ensure_round_open(self.session, t.round_id, actor)
         if t.format_code != FormatCode.PELADA_NORMAL:
             raise ValidationError("Só a pelada normal permite adicionar partidas")
         if t.status == TournamentStatus.ENCERRADO:
@@ -199,6 +202,7 @@ class TournamentService:
 
     async def finish_casual(self, tournament_id: int, actor: User) -> None:
         t = await self._tournament(tournament_id)
+        await ensure_round_open(self.session, t.round_id, actor)
         if t.format_code != FormatCode.PELADA_NORMAL:
             raise ValidationError("Use os resultados para encerrar o campeonato")
         for m in await self._matches(t.id):
@@ -214,6 +218,7 @@ class TournamentService:
     async def delete(self, tournament_id: int, actor: User) -> None:
         t = await self._tournament(tournament_id)
         rnd = await self._round(t.round_id)
+        ensure_open(rnd.date, actor)
         await audit_service.record(self.session, user_id=actor.id, action="DELETE", entity="tournament",
                                    entity_id=t.id, before={"format": t.format_code, "round_id": t.round_id})
         await self.session.delete(t)
@@ -224,6 +229,7 @@ class TournamentService:
     async def set_result(self, match_id: int, data: MatchResultIn, actor: User) -> Tournament:
         m = await self._match(match_id)
         t = await self._tournament(m.tournament_id)
+        await ensure_round_open(self.session, t.round_id, actor)
         if m.home_team_id is None or m.away_team_id is None:
             raise ValidationError("Os times desta partida ainda não estão definidos")
         await self.ensure_no_finished_dependents(t, m)
@@ -266,6 +272,7 @@ class TournamentService:
     async def reopen(self, match_id: int, actor: User) -> Tournament:
         m = await self._match(match_id)
         t = await self._tournament(m.tournament_id)
+        await ensure_round_open(self.session, t.round_id, actor)
         await self.ensure_no_finished_dependents(t, m)
         before = self._score_snapshot(m)
         await CallRollService(self.session).unfreeze(m)  # volta a seguir a escala da chamada

@@ -136,7 +136,7 @@ function CurrentRound({ r }: { r: Dashboard['current_round'] }) {
 
 function Season({ s }: { s: Dashboard['season'] }) {
   return (
-    <Section title={`Temporada ${s.year}`} action={more('/estatisticas', 'Estatísticas')}>
+    <Section title={`Temporada ${s.year}`} action={<span className="flex">{more('/gestao/fechamento', 'Fechamento')}{more('/estatisticas', 'Estatísticas')}</span>}>
       {s.last_champion && (
         <Link
           to={`/campeonato/${s.last_tournament_id}`}
