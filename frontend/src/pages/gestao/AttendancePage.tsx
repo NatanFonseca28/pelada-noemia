@@ -5,7 +5,7 @@ import { ApiError } from '@/api/client'
 import { usePlayers } from '@/api/queries'
 import { useCurrentRound, useRound, useRoundActions, useRounds } from '@/api/rounds'
 import type { PlayerType, Position, RoundDetail } from '@/api/types'
-import { Alert, Card, EmptyState, PageHeader, PlayerName, Spinner, TypeDot, TypeLegend, cx } from '@/components/ui'
+import { Alert, Card, EmptyState, PageHeader, PlayerName, Spinner, Tabs, TypeDot, TypeLegend, cx } from '@/components/ui'
 import { formatDate, positionShort, roundStatusLabel } from '@/lib/labels'
 
 const errorText = (err: unknown) => (err instanceof ApiError ? err.message : 'Algo deu errado')
@@ -24,7 +24,17 @@ interface Row {
   type: PlayerType
   primary_position: Position | null
   group: Group
+  active: boolean
 }
+
+type PlayersTab = 'MENSALISTA' | 'DIARISTA' | 'ISENTO' | 'INATIVOS'
+const TAB_LABELS: { id: PlayersTab; label: string }[] = [
+  { id: 'MENSALISTA', label: 'Mensalistas' },
+  { id: 'DIARISTA', label: 'Diaristas' },
+  { id: 'ISENTO', label: 'Goleiros (isentos)' },
+  { id: 'INATIVOS', label: 'Inativos' },
+]
+const inTab = (r: Row, t: PlayersTab) => (t === 'INATIVOS' ? !r.active : r.active && r.type === t)
 
 const countTypes = (rows: Row[]) => ({
   total: rows.length,
@@ -40,6 +50,7 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
   const { attendance, clearAttendance } = useRoundActions(round.id)
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Group | null>(null)
+  const [tab, setTab] = useState<PlayersTab>('MENSALISTA')
   const editable = round.status === 'ABERTA' || round.status === 'FECHADA'
   const busy = attendance.isPending || clearAttendance.isPending
   const error = attendance.error ?? clearAttendance.error
@@ -48,17 +59,20 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
   const rows = useMemo<Row[]>(() => {
     const absences = round.absences ?? []
     const answered = new Set([...round.attendances, ...absences].map((a) => a.player_id))
+    const isActive = (id: number) => players.find((p) => p.id === id)?.active ?? true
     return [
-      ...round.attendances.map((a) => ({ ...a, group: 'VAI' as const })),
-      ...absences.map((a) => ({ ...a, group: 'NAO_VAI' as const })),
+      ...round.attendances.map((a) => ({ ...a, group: 'VAI' as const, active: isActive(a.player_id) })),
+      ...absences.map((a) => ({ ...a, group: 'NAO_VAI' as const, active: isActive(a.player_id) })),
       ...players
-        .filter((p) => p.active && !answered.has(p.id))
-        .map((p) => ({ player_id: p.id, name: p.display_name, type: p.type, primary_position: p.primary_position, group: 'SEM_RESPOSTA' as const })),
+        .filter((p) => !answered.has(p.id))
+        .map((p) => ({ player_id: p.id, name: p.display_name, type: p.type, primary_position: p.primary_position, group: 'SEM_RESPOSTA' as const, active: p.active })),
     ]
   }, [round.attendances, round.absences, players])
 
   const term = q.trim().toLowerCase()
-  const visible = rows.filter((r) => (!filter || r.group === filter) && r.name.toLowerCase().includes(term))
+  const tabRows = rows.filter((r) => inTab(r, tab))
+  const visible = tabRows.filter((r) => (!filter || r.group === filter) && r.name.toLowerCase().includes(term))
+  const tabs = TAB_LABELS.map((t) => ({ ...t, count: rows.filter((r) => inTab(r, t.id)).length }))
 
   const set = (r: Row, target: Group) => {
     if (r.group === target) return
@@ -70,7 +84,7 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
     <>
       <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
         {GROUPS.map((g) => {
-          const c = countTypes(rows.filter((r) => r.group === g.key))
+          const c = countTypes(rows.filter((r) => r.active && r.group === g.key))
           const on = filter === g.key
           return (
             <button
@@ -97,6 +111,8 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
         })}
       </div>
 
+      <Tabs tabs={tabs} value={tab} onChange={setTab} label="Tipo de jogador" />
+
       <Card className="p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <input className="input max-w-xs" placeholder="Buscar jogador" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -107,7 +123,7 @@ function AttendanceBoard({ round }: { round: RoundDetail }) {
         {isLoading ? (
           <Spinner />
         ) : visible.length === 0 ? (
-          <EmptyState>{term ? 'Nenhum jogador com esse nome.' : 'Ninguém neste grupo.'}</EmptyState>
+          <EmptyState>{term ? 'Nenhum jogador com esse nome.' : tab === 'INATIVOS' ? 'Nenhum jogador inativo.' : 'Ninguém neste grupo.'}</EmptyState>
         ) : (
           <div className="space-y-4">
             {GROUPS.filter((g) => !filter || g.key === filter).map((g) => {

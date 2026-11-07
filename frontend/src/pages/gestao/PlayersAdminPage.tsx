@@ -3,7 +3,7 @@ import { Phone, ShieldCheck } from 'lucide-react'
 import { ApiError } from '@/api/client'
 import { useDeletePlayer, usePlayerPhoto, usePlayers, useSavePlayer } from '@/api/queries'
 import type { Player, PlayerInput, PlayerType, Position } from '@/api/types'
-import { Alert, Avatar, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Spinner, TypeBadge } from '@/components/ui'
+import { Alert, Avatar, Badge, Button, Card, EmptyState, Field, ICON_STROKE, Modal, PageHeader, Spinner, Tabs, TypeBadge } from '@/components/ui'
 import { playerTypeLabel, positionLabel, positionShort } from '@/lib/labels'
 import { formatPhone, maskPhone } from '@/lib/phone'
 
@@ -180,12 +180,14 @@ function PlayerForm({ player, onDone }: { player: Player | null; onDone: () => v
   )
 }
 
+type PlayersTab = 'MENSALISTA' | 'DIARISTA' | 'ISENTO' | 'INATIVOS'
+
 export function PlayersAdminPage() {
   const [q, setQ] = useState('')
-  const [showInactive, setShowInactive] = useState(false)
+  const [tab, setTab] = useState<PlayersTab>('MENSALISTA')
   const [editing, setEditing] = useState<Player | null | undefined>(undefined)
   const [feedback, setFeedback] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
-  const { data, isLoading } = usePlayers({ q: q || undefined, active: showInactive ? undefined : true })
+  const { data, isLoading } = usePlayers({ q: q || undefined })
   const del = useDeletePlayer()
 
   async function onDelete(p: Player) {
@@ -198,7 +200,17 @@ export function PlayersAdminPage() {
     }
   }
 
-  const counts = (data ?? []).reduce<Record<string, number>>((acc, p) => {
+  const all = data ?? []
+  const inTab = (p: Player, t: PlayersTab) => (t === 'INATIVOS' ? !p.active : p.active && p.type === t)
+  const tabs: { id: PlayersTab; label: string; count: number }[] = [
+    { id: 'MENSALISTA', label: 'Mensalistas' },
+    { id: 'DIARISTA', label: 'Diaristas' },
+    { id: 'ISENTO', label: 'Goleiros (isentos)' },
+    { id: 'INATIVOS', label: 'Inativos' },
+  ].map((t) => ({ ...t, id: t.id as PlayersTab, count: all.filter((p) => inTab(p, t.id as PlayersTab)).length }))
+  const list = all.filter((p) => inTab(p, tab))
+
+  const counts = list.reduce<Record<string, number>>((acc, p) => {
     const key = p.primary_position ?? 'SEM'
     acc[key] = (acc[key] ?? 0) + 1
     return acc
@@ -213,10 +225,6 @@ export function PlayersAdminPage() {
       {feedback && <div className="mb-4"><Alert kind={feedback.kind}>{feedback.text}</Alert></div>}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input className="input max-w-xs" placeholder="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="accent-primary" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-          Mostrar inativos
-        </label>
         <div className="flex gap-1">
           {POSITIONS.map((p) => (
             <Badge key={p}>{positionShort[p]}: {counts[p] ?? 0}</Badge>
@@ -225,13 +233,15 @@ export function PlayersAdminPage() {
         </div>
       </div>
 
+      <Tabs tabs={tabs} value={tab} onChange={setTab} label="Tipo de jogador" />
+
       {isLoading ? (
         <Spinner />
-      ) : !data?.length ? (
-        <EmptyState>Nenhum jogador cadastrado.</EmptyState>
+      ) : !list.length ? (
+        <EmptyState>{q ? 'Nenhum jogador com essa busca.' : tab === 'INATIVOS' ? 'Nenhum jogador inativo.' : 'Nenhum jogador nesta aba.'}</EmptyState>
       ) : (
         <Card className="divide-y divide-line">
-          {data.map((p) => (
+          {list.map((p) => (
             <div key={p.id} className="flex items-center gap-3 p-3">
               <Avatar name={p.display_name} url={p.photo_url} type={p.type} />
               <div className="min-w-0 flex-1">
