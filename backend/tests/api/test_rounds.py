@@ -183,3 +183,18 @@ async def test_tres_estados_de_presenca(client, admin_headers, jogador_headers, 
     await client.post(f"/api/rounds/{rid}/lock", headers=admin_headers)
     assert (await client.delete(f"/api/rounds/{rid}/attendances/{ids[1]}",
                                 headers=admin_headers)).status_code == 422
+
+
+async def test_previa_do_sorteio_diz_se_fecha(client, admin_headers, jogador_headers):
+    ids = await make_players(client, admin_headers, 19, 1)  # 19 de linha + 1 goleiro
+    rid = await new_round(client, admin_headers, "2026-12-02")
+    await confirm_all(client, admin_headers, rid, ids)
+    r = await client.get(f"/api/rounds/{rid}/draw-preview", headers=admin_headers)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["status"] == "SOBRA" and d["confirmed"] == 20 and d["line"] == 19 and d["goalkeepers"] == 1
+    assert d["options"][0]["kind"] == "SHORT" and d["options"][0]["allow_short_team"] is True
+    d = (await client.get(f"/api/rounds/{rid}/draw-preview", params={"allow_short_team": True},
+                          headers=admin_headers)).json()
+    assert d["status"] == "OK" and d["teams"] == 4
+    assert (await client.get(f"/api/rounds/{rid}/draw-preview", headers=jogador_headers)).status_code == 403

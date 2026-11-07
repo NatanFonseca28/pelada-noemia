@@ -309,6 +309,80 @@ def _explain_surplus(line_total: int, n: int, bench: int, config: DrawConfig) ->
     return f"{text} {joined[0].upper()}{joined[1:]}."
 
 
+@dataclass
+class PreviewOption:
+    """Saída possível quando a lista não fecha. `kind`: SHORT (jogar com menos 1), TEAMS (escolher nº de times), INFO."""
+
+    kind: str
+    label: str
+    num_teams: int | None = None
+    allow_short_team: bool = False
+
+
+@dataclass
+class DrawPreview:
+    """Situação da lista ANTES de sortear: fecha, sobra gente ou falta gente (sem sortear nada)."""
+
+    status: str  # OK | SOBRA | FALTA
+    line: int
+    goalkeepers: int
+    teams: int
+    team_sizes: list[int]  # jogadores por time (linha + gol) quando fecha
+    headline: str
+    detail: str
+    options: list[PreviewOption]
+
+
+def _plural(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
+def preview(line_total: int, goalkeepers: int, config: DrawConfig) -> DrawPreview:
+    """Mesmas contas do `run_draw`, sem sortear: diz se a lista fecha e o que fazer quando não fecha."""
+    per = config.line_per_team
+    base = dict(line=line_total, goalkeepers=goalkeepers)
+    auto_n = line_total // per
+    n = auto_n
+    if config.allow_short_team and auto_n + 1 >= 3 and line_total >= (auto_n + 1) * per - 1:
+        n = auto_n + 1
+    if n < 2 or (n == 2 and min(goalkeepers, 2) + _plan(line_total, goalkeepers, 2, per)[1] < 2):
+        total = line_total + goalkeepers
+        need = max(2 * per - line_total, 2 * per + 2 - total, 1)
+        return DrawPreview(
+            "FALTA", teams=0, team_sizes=[], headline=f"Faltam {_plural(need, 'jogador', 'jogadores')} para formar 2 times",
+            detail=f"Para 2 times precisa de {2 * per} na linha e um goleiro para cada gol (fixo ou alguém que reveza).",
+            options=[], **base)
+    sizes, rotation, bench = _plan(line_total, goalkeepers, n, per)
+    if bench:
+        nxt = n + 1
+        short_ok = nxt >= 3
+        missing = nxt * per - line_total - (1 if config.allow_short_team and short_ok else 0)
+        options: list[PreviewOption] = []
+        if missing <= 0:
+            options.append(PreviewOption("TEAMS", f"Fazer {nxt} times", num_teams=nxt, allow_short_team=config.allow_short_team))
+        elif missing == 1 and short_ok and not config.allow_short_team:
+            options.append(PreviewOption("SHORT", f"Jogar com menos 1 e fazer {nxt} times", allow_short_team=True))
+        else:
+            hint = f"Confirmar mais {_plural(missing, 'jogador', 'jogadores')} de linha para fechar {nxt} times"
+            if short_ok and not config.allow_short_team and missing == 2:
+                hint += " (ou 1 se jogar com menos 1)"
+            options.append(PreviewOption("INFO", hint))
+        options.append(PreviewOption("INFO", f"Ou tirar {_plural(bench, 'jogador', 'jogadores')} da lista"))
+        return DrawPreview(
+            "SOBRA", teams=n, team_sizes=[], headline=f"Não fecha: sobra{'m' if bench > 1 else ''} {_plural(bench, 'jogador', 'jogadores')}",
+            detail=f"Com {n} times, cada um tem no máximo {per} na linha + 1 no gol. Não existe reserva.",
+            options=options, **base)
+    owners = n - rotation
+    keepers = owners if goalkeepers and goalkeepers >= owners else 0
+    totals = [s + (1 if i < rotation or keepers else 0) for i, s in enumerate(sizes)]
+    same = len(set(totals)) == 1
+    headline = f"Fecha {n} times de {totals[0]} jogadores" if same else f"Fecha {n} times ({'/'.join(map(str, sorted(totals, reverse=True)))} jogadores)"
+    shorts = sum(1 for s in sizes if s < per)
+    detail = f"{per} na linha + 1 no gol em cada time." if not shorts else (
+        f"{_plural(shorts, 'time joga', 'times jogam')} com {per - 1} na linha; alguém do time de fora completa na hora.")
+    return DrawPreview("OK", teams=n, team_sizes=totals, headline=headline, detail=detail, options=[], **base)
+
+
 def _describe(num_teams: int, sizes: list[int], per_team: int, reserves: int) -> str:
     mode = "pelada normal" if num_teams == 2 else "campeonato"
     sizes_txt = "/".join(str(s) for s in sizes)
@@ -454,7 +528,7 @@ def run_draw(
     no_position = _order_candidates([p for p in line if p.primary is None], rng, config.balance_by_skill)
     if no_position:
         infos.append(
-            f"{len(no_position)} jogador(es) sem posição definida foram usados como coringa: "
+            f"{len(no_position)} jogador(es) sem posição jogam onde faltava: "
             + ", ".join(p.name for p in sorted(no_position, key=lambda p: p.name))
         )
 
@@ -532,17 +606,11 @@ def run_draw(
         shared = sorted(gk_pool[len(owners):], key=lambda p: p.name)
     elif goalkeepers:
         shared = sorted(goalkeepers, key=lambda p: p.name)
-    if shared:
-        infos.append(
-            f"Goleiro(s) fixo(s) da pelada: {', '.join(g.name for g in shared)}. Não pertencem a nenhum time: "
-            "agarram para os times de 5 na linha que estiverem em campo (a Tabela mostra o goleiro de cada jogo)."
-        )
     if goalkeepers and not owners:
         missing_players = (n + 1) * per - (1 if config.allow_short_team else 0) - total_line
-        need_more = f"Faltam {missing_players} jogador(es) de linha para fechar {n + 1} times, ou " if missing_players > 0 else "Escolha mais times, ou "
-        warnings.append(
-            f"Os {n} times já fecham {per} na linha + 1 revezando no gol, então o goleiro fixo "
-            f"({', '.join(g.name for g in goalkeepers)}) não pertence a nenhum time. "
+        need_more = f"Faltam {missing_players} de linha para {n + 1} times, ou " if missing_players > 0 else "Escolha mais times, ou "
+        infos.append(
+            f"{', '.join(g.name for g in goalkeepers)} agarra para todos os times, porque todos já têm +1 no gol. "
             + need_more + "a rodada não precisa de goleiro fixo."
         )
 
@@ -553,29 +621,19 @@ def run_draw(
         place(teams[t], p, position, how, Role.REVEZAMENTO)
 
     # Times sem goleiro (com 2+ goleiros da pelada, as duas metas de cada partida estão cobertas)
-    no_keeper = [t for t in teams if not t.has_fixed_gk and not t.has_rotation_gk]
     mode = Mode.PELADA_NORMAL if n == 2 else Mode.CAMPEONATO
-    if no_keeper and len(shared) < 2:
-        when = " quando o goleiro fixo estiver no outro gol" if shared else ""
-        infos.append(
-            "Sem goleiro fixo nem excedente: "
-            + ", ".join(f"Time {t.name}" for t in no_keeper)
-            + f". O gol fica com um voluntário do time que está fora da partida{when}."
-        )
     if mode == Mode.PELADA_NORMAL:
-        infos.append("Apenas 2 times: pelada normal (sem campeonato).")
+        infos.append("2 times: pelada normal, sem campeonato.")
     short = [t for t in teams if t.line_count < per]
     if short:
         infos.append(
-            "Com um a menos na linha: " + ", ".join(f"Time {t.name}" for t in short)
-            + ". Completa na hora com alguém do time que está de fora da partida."
+            ", ".join(f"Time {t.name}" for t in short)
+            + f" joga com {per - 1} na linha: alguém do time que está de fora completa na hora."
         )
 
     alternatives = suggest_alternatives(total_line, config, len(goalkeepers)) if num_teams is None else []
     if alternatives:
-        warnings.append(
-            f"Sobraram {total_line - auto_n * per} jogadores de linha. Veja as formações alternativas antes de travar."
-        )
+        infos.append("Há outras formações possíveis com esta lista.")
 
     if config.balance_by_skill:
         _refine_balance(teams)

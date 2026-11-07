@@ -666,3 +666,17 @@ export interface DailyOverview {
   received: string
   pending: string
 }
+
+/** Situação da lista antes de sortear (fecha / sobra gente / falta gente) e o que fazer. */
+export interface DrawPreview {
+  status: 'OK' | 'SOBRA' | 'FALTA'
+  confirmed: number
+  line: number
+  goalkeepers: number
+  teams: number
+  /** jogadores por time (linha + gol) quando fecha */
+  team_sizes: number[]
+  headline: string
+  detail: string
+  options: { kind: 'SHORT' | 'TEAMS' | 'INFO'; label: string; num_teams: number | null; allow_short_team: boolean }[]
+}

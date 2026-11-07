@@ -79,6 +79,27 @@ class DrawInfo(BaseModel):
     created_at: datetime
 
 
+class PreviewOptionOut(BaseModel):
+    kind: Literal["SHORT", "TEAMS", "INFO"]
+    label: str
+    num_teams: int | None = None
+    allow_short_team: bool = False
+
+
+class DrawPreviewOut(BaseModel):
+    """Situação da lista antes de sortear (fecha / sobra gente / falta gente) e o que fazer."""
+
+    status: Literal["OK", "SOBRA", "FALTA"]
+    confirmed: int
+    line: int
+    goalkeepers: int
+    teams: int
+    team_sizes: list[int]
+    headline: str
+    detail: str
+    options: list[PreviewOptionOut]
+
+
 class SimplePlayer(BaseModel):
     player_id: int
     name: str

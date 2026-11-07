@@ -4,7 +4,16 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from app.domain.draw import DEFAULT_LEVEL, DEFAULT_SPEED, DrawConfig, DrawError, DrawPlayer, new_seed, run_draw
+from app.domain.draw import (
+    DEFAULT_LEVEL,
+    DEFAULT_SPEED,
+    DrawConfig,
+    DrawError,
+    DrawPlayer,
+    new_seed,
+    preview,
+    run_draw,
+)
 from app.models.enums import PlayerType, Position, UserRole
 from app.models.match_event import MatchEvent
 from app.models.player import Player
@@ -25,6 +34,8 @@ from app.repositories.settings_repo import SettingsRepository
 from app.schemas.round import (
     AttendanceOut,
     DrawInfo,
+    DrawPreviewOut,
+    PreviewOptionOut,
     LoanOut,
     RoundDetail,
     RoundSummary,
@@ -422,6 +433,27 @@ class RoundService:
         await audit_service.record(self.session, user_id=actor.id, action="DRAW", entity="round", entity_id=rnd.id,
                                    after={"draw_id": draw.id, "seed": seed, "num_teams": result.num_teams})
         await self.session.commit()
+
+    async def draw_preview(self, round_id: int, allow_short_team: bool) -> DrawPreviewOut:
+        """Diz se a lista de confirmados fecha times, sem sortear nada."""
+        rnd = await self._round(round_id)
+        settings = await SettingsRepository(self.session).get_current()
+        rows = (
+            await self.session.execute(
+                select(Player, Attendance.role)
+                .join(Attendance, Attendance.player_id == Player.id)
+                .where(Attendance.round_id == rnd.id, Attendance.status == AttendanceStatus.CONFIRMADO)
+            )
+        ).all()
+        gks = sum(1 for p, role in rows if is_goalkeeper(p, role))
+        config = DrawConfig(line_per_team=settings.line_players_per_team, allow_short_team=allow_short_team)
+        r = preview(len(rows) - gks, gks, config)
+        return DrawPreviewOut(
+            status=r.status, confirmed=len(rows), line=r.line, goalkeepers=r.goalkeepers, teams=r.teams,
+            team_sizes=r.team_sizes, headline=r.headline, detail=r.detail,
+            options=[PreviewOptionOut(kind=o.kind, label=o.label, num_teams=o.num_teams,
+                                      allow_short_team=o.allow_short_team) for o in r.options],
+        )
 
     async def move(self, round_id: int, player_id: int, team_id: int | None, role: TeamRole | None,
                    actor: User) -> None:

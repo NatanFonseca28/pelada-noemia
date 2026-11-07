@@ -3,7 +3,17 @@ from collections import Counter
 
 import pytest
 
-from app.domain.draw import DrawConfig, DrawError, DrawPlayer, FilledBy, Mode, Role, run_draw, suggest_alternatives
+from app.domain.draw import (
+    DrawConfig,
+    DrawError,
+    DrawPlayer,
+    FilledBy,
+    Mode,
+    Role,
+    preview,
+    run_draw,
+    suggest_alternatives,
+)
 
 CFG = DrawConfig()
 
@@ -42,7 +52,6 @@ def test_multiplo_exato_de_5_sem_goleiro_campeonato_com_voluntario():
     assert not r.substitutions
     data = r.to_dict()
     assert all(t["uses_volunteer_gk"] for t in data["teams"])
-    assert any("voluntário" in i for i in r.infos)
     assert sorted(all_ids(r)) == [p.id for p in players]
 
 
@@ -114,8 +123,8 @@ def test_18_de_linha_e_1_goleiro_fixo_avisa_que_ele_sobra():
     assert [t.line_count for t in r.teams] == [6, 6, 6]
     assert not any(t.has_fixed_gk for t in r.teams)
     assert r.shared_goalkeepers == [players[-1].id]
-    assert any("Faltam 2 jogador(es)" in w and "4 times" in w and "não precisa de goleiro fixo" in w
-               for w in r.warnings)
+    assert any("Faltam 2 de linha" in i and "4 times" in i and "não precisa de goleiro fixo" in i
+               for i in r.infos)
 
 
 @pytest.mark.parametrize(("zag", "ala", "ata", "sizes"), [(6, 6, 4, [5, 5, 6]), (6, 5, 4, [5, 5, 5])])
@@ -125,7 +134,7 @@ def test_mais_de_um_time_de_5_goleiro_fixo_fica_da_pelada(zag, ala, ata, sizes):
     assert sorted(t.line_count for t in r.teams) == sizes
     assert not any(t.has_fixed_gk for t in r.teams)
     assert r.shared_goalkeepers == [players[-1].id]
-    assert not any("não precisa de goleiro fixo" in w for w in r.warnings)
+    assert not any("não precisa de goleiro fixo" in i for i in r.infos)
 
 
 def test_16_de_linha_e_2_goleiros_fixos_vao_para_os_2_times_de_5():
@@ -202,7 +211,7 @@ def test_jogadores_sem_posicao_completam_vagas_antes_de_qualquer():
     players = make_players(zag=6, ala=6, none=3)
     r = run_draw(players, CFG, seed=8)
     assert [s.filled_by for s in r.substitutions] == [FilledBy.SEM_POSICAO] * 3
-    assert any("sem posição definida" in i for i in r.infos)
+    assert any("sem posição jogam onde faltava" in i for i in r.infos)
 
 
 def test_todos_sem_posicao_ainda_sorteia():
@@ -252,7 +261,7 @@ def test_nunca_reserva_nem_time_com_7(line, gks):
     # goleiro fixo só ganha time quando os times de 5 não passam dos goleiros
     assert owned == (fives if gks and gks >= fives else 0)
     assert len(r.shared_goalkeepers) == gks - owned
-    assert (fives == 0 and gks > 0) == any("não precisa de goleiro fixo" in w for w in r.warnings)
+    assert (fives == 0 and gks > 0) == any("não precisa de goleiro fixo" in i for i in r.infos)
     assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
 
 
@@ -361,7 +370,7 @@ def test_um_a_menos_forma_3_times_com_14_de_linha_e_2_goleiros():
     assert r.mode == Mode.CAMPEONATO and r.num_teams == 3
     assert sorted(t.line_count for t in r.teams) == [4, 5, 5]
     assert r.reserves == []
-    assert any("um a menos" in i and "time que está de fora" in i for i in r.infos)
+    assert any("joga com 4 na linha" in i and "time que está de fora" in i for i in r.infos)
     assert sorted(all_ids(r) + r.shared_goalkeepers) == [p.id for p in players]
     assert [a.num_teams for a in r.alternatives] == [3]
 
@@ -391,3 +400,42 @@ def test_jogador_repetido():
     p = make_players(zag=12)
     with pytest.raises(DrawError):
         run_draw(p + [p[0]], CFG, seed=1)
+
+
+# ---------- situação da lista antes de sortear ----------
+
+def test_preview_fecha_3_times_de_6():
+    r = preview(18, 0, CFG)
+    assert r.status == "OK" and r.teams == 3 and r.team_sizes == [6, 6, 6]
+    assert r.headline == "Fecha 3 times de 6 jogadores"
+
+
+def test_preview_19_de_linha_mais_1_goleiro_sobra_1_e_sugere_menos_1():
+    r = preview(19, 1, CFG)
+    assert r.status == "SOBRA" and "sobra 1 jogador" in r.headline
+    assert r.options[0].kind == "SHORT" and r.options[0].allow_short_team
+    p = preview(19, 1, DrawConfig(allow_short_team=True))
+    assert p.status == "OK" and p.teams == 4
+
+
+def test_preview_falta_gente_e_diz_quantos():
+    r = preview(8, 0, CFG)
+    assert r.status == "FALTA" and "Faltam 4 jogadores" in r.headline
+    assert preview(10, 0, CFG).status == "FALTA"  # 2 times sem goleiro nenhum
+    assert preview(10, 2, CFG).status == "OK"
+
+
+@pytest.mark.parametrize("line", range(8, 31))
+@pytest.mark.parametrize("gks", range(0, 4))
+@pytest.mark.parametrize("short", [False, True])
+def test_preview_concorda_com_o_sorteio(line, gks, short):
+    cfg = DrawConfig(allow_short_team=short)
+    pv = preview(line, gks, cfg)
+    players = make_players(zag=line * 2 // 5, ala=line * 2 // 5, ata=line - 2 * (line * 2 // 5), gk=gks)
+    try:
+        r = run_draw(players, cfg, seed=1)
+    except DrawError:
+        assert pv.status != "OK"
+        return
+    assert pv.status == "OK" and pv.teams == r.num_teams
+    assert all(t <= 6 for t in pv.team_sizes)

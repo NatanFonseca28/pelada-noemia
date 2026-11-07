@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, json } from './client'
-import type { RoundDetail, RoundSummary, TeamRole } from './types'
+import type { DrawPreview, RoundDetail, RoundSummary, TeamRole } from './types'
 
 export function useRounds() {
   return useQuery({ queryKey: ['rounds'], queryFn: () => api<RoundSummary[]>('/rounds') })
@@ -8,6 +8,15 @@ export function useRounds() {
 
 export function useRound(id: number) {
   return useQuery({ queryKey: ['rounds', id], queryFn: () => api<RoundDetail>(`/rounds/${id}`) })
+}
+
+/** Situação da lista de confirmados antes de sortear (só admin). Atualiza quando a presença muda. */
+export function useDrawPreview(roundId: number, allowShort: boolean, enabled = true) {
+  return useQuery({
+    queryKey: ['rounds', roundId, 'preview', allowShort],
+    queryFn: () => api<DrawPreview>(`/rounds/${roundId}/draw-preview?allow_short_team=${allowShort}`),
+    enabled,
+  })
 }
 
 export function useCurrentRound() {
@@ -31,6 +40,7 @@ function useRoundAction<V>(roundId: number, fn: (vars: V) => Promise<RoundDetail
     mutationFn: fn,
     onSuccess: (data) => {
       qc.setQueryData(['rounds', roundId], data)
+      qc.invalidateQueries({ queryKey: ['rounds', roundId, 'preview'] })
       qc.invalidateQueries({ queryKey: ['rounds'], exact: true })
       qc.invalidateQueries({ queryKey: ['rounds', 'current'] })
       qc.invalidateQueries({ queryKey: ['tournament'] }) // empréstimos aparecem nas partidas

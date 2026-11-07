@@ -5,6 +5,7 @@ from app.core.errors import NotFoundError
 from app.schemas.round import (
     AttendanceSet,
     CheckinSet,
+    DrawPreviewOut,
     DrawRequest,
     MoveRequest,
     PaidSet,
@@ -50,6 +51,12 @@ async def delete_round(round_id: int, admin: AdminUser, session: SessionDep, for
     """Exclui a rodada. Rodada já realizada (travada/encerrada) exige `force=true`: apaga também presenças,
     sorteios, times, campeonato, partidas e súmula. Mensalidades e caixa não são afetados."""
     await RoundService(session).delete(round_id, admin, force)
+
+
+@router.get("/{round_id}/draw-preview", response_model=DrawPreviewOut)
+async def draw_preview(round_id: int, admin: AdminUser, session: SessionDep, allow_short_team: bool = False):
+    """Situação da lista antes de sortear: fecha, sobra ou falta gente, e o que fazer (não sorteia nada)."""
+    return await RoundService(session).draw_preview(round_id, allow_short_team)
 
 
 @router.put("/{round_id}/attendance/me", response_model=RoundDetail)

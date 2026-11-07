@@ -1,11 +1,12 @@
-import { useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { usePlayers } from '@/api/queries'
-import { useRound, useRoundActions } from '@/api/rounds'
+import { useDrawPreview, useRound, useRoundActions } from '@/api/rounds'
 import type { Player, RoundDetail, TeamItem, TeamPlayerItem } from '@/api/types'
 import { DeleteRoundDialog } from '@/components/rounds/DeleteRoundDialog'
+import { DrawHelp, DrawStatus, DrawSteps } from '@/components/rounds/DrawStatus'
 import { ShareButton } from '@/components/ShareButton'
 import { teamsText } from '@/lib/share'
 import { useCompetitions } from '@/api/catalog'
@@ -179,6 +180,11 @@ function DrawPanel({ round }: { round: RoundDetail }) {
   const [competition, setCompetition] = useState<string>(d ? d.competition ?? '' : 'BSA')
   const available = (competitions.data ?? []).filter((c) => c.clubs > 0)
   const chosen = available.some((c) => c.code === competition) ? competition : ''
+  const preview = useDrawPreview(round.id, allowShort, editable).data
+  const blocked = !!preview && preview.status !== 'OK'
+  // o aviso de um sorteio que falhou some quando a lista ou a opção muda
+  const { reset: resetDraw } = draw
+  useEffect(() => resetDraw(), [preview?.headline, allowShort, resetDraw])
 
   const drop = (team: TeamItem) => (playerId: number) => {
     if (!team.players.some((p) => p.player_id === playerId)) move.mutate({ player_id: playerId, team_id: team.id })
@@ -189,22 +195,24 @@ function DrawPanel({ round }: { round: RoundDetail }) {
     if (id && round.teams.some((t) => t.players.some((p) => p.player_id === id))) move.mutate({ player_id: id, team_id: null })
   }
 
+  const step = locked ? 3 : round.teams.length > 0 ? 2 : round.confirmed_count > 0 && preview?.status === 'OK' ? 1 : 0
   const doDraw = (num_teams?: number, short = allowShort) => {
     if (round.teams.length && !confirm('Refazer o sorteio? Os ajustes manuais serão perdidos.')) return
     draw.mutate({ ...(num_teams ? { num_teams } : {}), allow_short_team: short, competition: chosen || null })
   }
 
-  const error = draw.error ?? move.error ?? status.error
+  // quando a faixa de situação já explica por que não fecha, o erro 422 do sorteio não precisa repetir
+  const error = (blocked ? null : draw.error) ?? move.error ?? status.error
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex flex-wrap items-center gap-x-3 font-semibold">
-          Sorteio dos times <TypeLegend className="font-normal" />
+          Sorteio dos times <DrawHelp /> <TypeLegend className="font-normal" />
         </h2>
         <div className="flex flex-wrap gap-2">
           {locked && round.teams.length > 0 && <ShareButton text={() => teamsText(round.date, round.teams, round.shared_goalkeepers)} label="Compartilhar times" />}
           {editable && (
-            <Button onClick={() => doDraw()} loading={draw.isPending}>
+            <Button onClick={() => doDraw()} loading={draw.isPending} disabled={blocked}>
               🎲 {round.teams.length ? 'Refazer sorteio' : 'Sortear times'}
             </Button>
           )}
@@ -235,33 +243,41 @@ function DrawPanel({ round }: { round: RoundDetail }) {
           )}
         </label>
       )}
+      {editable && <DrawSteps current={step} />}
+      {editable && preview && (
+        <DrawStatus
+          preview={preview}
+          busy={draw.isPending}
+          onApply={(o) => {
+            if (o.kind === 'SHORT') setAllowShort(true)
+            doDraw(o.num_teams ?? undefined, o.allow_short_team)
+          }}
+        />
+      )}
       {editable && (
-        <label className="mb-3 flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={allowShort} onChange={(e) => setAllowShort(e.target.checked)} />
-          <span>
-            Jogar com menos 1
-            <span className="block text-xs text-muted">Se faltar só 1 para formar mais um time, ele joga com um a menos e é completado na hora por alguém do time que está de fora (só com 3 times ou mais). Não existe reserva: nenhum time passa de 6.</span>
-          </span>
-        </label>
+        <details className="mb-3 text-sm">
+          <summary className="cursor-pointer text-muted">Opções do sorteio</summary>
+          <label className="mt-2 flex items-start gap-2">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={allowShort} onChange={(e) => setAllowShort(e.target.checked)} />
+            <span>
+              Jogar com menos 1
+              <span className="block text-xs text-muted">Um time joga com 4 na linha; alguém do time de fora completa na hora (só com 3 times ou mais).</span>
+            </span>
+          </label>
+        </details>
       )}
-      {error && (
-        <div className="mb-3 space-y-2">
-          <Alert>{errorText(error)}</Alert>
-          {draw.error && errorText(draw.error).includes('Jogar com menos 1') && !allowShort && editable && (
-            <Button size="sm" variant="secondary" loading={draw.isPending} onClick={() => { setAllowShort(true); doDraw(undefined, true) }}>
-              Jogar com menos 1 e sortear de novo
-            </Button>
-          )}
-        </div>
-      )}
+      {error && <div className="mb-3"><Alert>{errorText(error)}</Alert></div>}
       {!d && !error && (
         <p className="py-6 text-center text-sm text-muted">
           Confirme os presentes e clique em <strong>Sortear times</strong>. Sortear fecha a lista de presença.
         </p>
       )}
 
+      {d && blocked && (
+        <p className="mb-2 text-xs font-medium text-muted">Sorteio anterior (continua valendo até você sortear de novo)</p>
+      )}
       {d && (
-        <div className="mb-4 space-y-2">
+        <div className={cx('mb-4 space-y-2', blocked && 'opacity-60')}>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
             <Badge color={d.mode === 'CAMPEONATO' ? 'green' : 'yellow'}>{d.mode === 'CAMPEONATO' ? 'Campeonato' : 'Pelada normal (2 gols ou 10 min)'}</Badge>
             <span>{d.num_teams} times · seed <code className="font-mono">{d.seed}</code> · {new Date(d.created_at).toLocaleString('pt-BR')}</span>
@@ -269,10 +285,22 @@ function DrawPanel({ round }: { round: RoundDetail }) {
             <BalanceSummary teams={round.teams} />
           </div>
           {d.warnings.map((w) => <Alert key={w}>{w}</Alert>)}
-          {d.infos.map((i) => <Alert key={i} kind="info">{i}</Alert>)}
-          {d.alternatives.length > 0 && editable && (
-            <div className="rounded-lg border border-accent/60 bg-accent/15 p-3 text-sm">
-              <p className="mb-2 font-medium">Formações possíveis — escolha uma:</p>
+          {(d.infos.length > 0 || d.substitutions.length > 0) && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted">Detalhes do sorteio ({d.infos.length + (d.substitutions.length ? 1 : 0)})</summary>
+              <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
+                {d.infos.map((i) => <li key={i}>{i}</li>)}
+                {d.substitutions.length > 0 && (
+                  <li>
+                    {d.substitutions.map((sub) => `${sub.name} como ${slotPositionShort[sub.position]} no Time ${round.teams[sub.team_index]?.name ?? sub.team_index + 1} (${filledByLabel[sub.filled_by]})`).join('; ')}
+                  </li>
+                )}
+              </ul>
+            </details>
+          )}
+          {d.alternatives.length > 1 && editable && (
+            <div className="rounded-lg border border-line bg-soft p-3 text-sm">
+              <p className="mb-2 font-medium">Outras formações possíveis:</p>
               <div className="flex flex-wrap gap-2">
                 {d.alternatives.map((a) => (
                   <Button key={a.num_teams} size="sm" variant={a.num_teams === d.num_teams ? 'primary' : 'secondary'} onClick={() => a.num_teams !== d.num_teams && doDraw(a.num_teams)}>
@@ -282,20 +310,6 @@ function DrawPanel({ round }: { round: RoundDetail }) {
               </div>
             </div>
           )}
-          {d.substitutions.length > 0 && (
-            <details className="text-sm">
-              <summary className="cursor-pointer text-muted">
-                {d.substitutions.length} vaga(s) completada(s) fora da posição principal
-              </summary>
-              <ul className="mt-1 list-inside list-disc text-muted">
-                {d.substitutions.map((s) => (
-                  <li key={s.player_id}>
-                    {s.name} como {slotPositionShort[s.position]} no Time {round.teams[s.team_index]?.name ?? s.team_index + 1} ({filledByLabel[s.filled_by]})
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
         </div>
       )}
 
@@ -303,7 +317,7 @@ function DrawPanel({ round }: { round: RoundDetail }) {
         <div className="mb-3 space-y-2">
           {round.not_in_teams.length > 0 && (
             <Alert kind="info">
-              Confirmados fora dos times (não existe reserva; nenhum time passa de 6). Confirmaram depois do sorteio? Refaça o sorteio ou arraste para um time com vaga:{' '}
+              Ficou de fora (não existe reserva): refaça o sorteio ou arraste para um time com vaga.{' '}
               {round.not_in_teams.map((p) => (
                 <button
                   key={p.player_id}

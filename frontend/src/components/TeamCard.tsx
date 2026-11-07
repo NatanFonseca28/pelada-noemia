@@ -42,13 +42,20 @@ export function PlayerChip({
         {slotPositionShort[player.position] ?? player.position}
       </span>
       <PlayerName id={player.player_id} name={player.name} className="flex-1" />
-      {rot && <Badge color="blue">🧤 reveza</Badge>}
-      {sub && <Badge color="yellow">{player.filled_by === 'SEM_POSICAO' ? 'coringa' : 'improvisado'}</Badge>}
+      {rot && <Badge color="blue">🧤 reveza no gol</Badge>}
+      {sub && <Badge color="yellow">{player.filled_by === 'SEM_POSICAO' ? 'sem posição' : 'fora de posição'}</Badge>}
       {player.moved_manually && (
         <Hand size={14} strokeWidth={ICON_STROKE} className="text-muted" aria-label="Ajustado manualmente" />
       )}
     </li>
   )
+}
+
+/** "5 + goleiro", "5 + 1 reveza no gol" ou "4 na linha": a contagem sem confundir o 6º jogador com a linha. */
+function composition(team: TeamItem) {
+  if (team.has_fixed_gk) return `${team.line_count} na linha + goleiro`
+  if (team.has_rotation_gk) return `${team.line_count - 1} na linha + 1 reveza no gol`
+  return `${team.line_count} na linha`
 }
 
 export function TeamCard({
@@ -87,7 +94,7 @@ export function TeamCard({
       onDragOver={editable ? (e) => e.preventDefault() : undefined}
       onDrop={editable ? onDrop : undefined}
     >
-      <div className="flex items-center justify-between px-3 py-2" style={{ background: color, color: teamInk(color) }}>
+      <div className="px-3 py-2" style={{ background: color, color: teamInk(color) }}>
         {/* 19px negrito = texto grande (AA 3:1) para a tinta #0e1a12 sobre as cores de time */}
         <span className="flex min-w-0 items-center gap-2">
           {team.crest_url && (
@@ -95,10 +102,10 @@ export function TeamCard({
               <TeamShield name={team.name} crestUrl={team.crest_url} size={24} />
             </span>
           )}
-          <span className="truncate font-display text-[19px] font-bold leading-tight">Time {team.name}</span>
+          <span className="min-w-0 font-display text-[19px] font-bold leading-tight">Time {team.name}</span>
         </span>
-        {/* texto pequeno vai num chip claro para manter AA 4.5:1 */}
-        <span className="rounded-full bg-surface/90 px-2 py-0.5 text-xs font-semibold text-ink">{team.line_count} na linha</span>
+        {/* texto pequeno vai num chip claro para manter AA 4.5:1; em linha própria para o nome não ser cortado */}
+        <span className="mt-1 inline-block rounded-full bg-surface/90 px-2 py-0.5 text-xs font-semibold text-ink">{composition(team)}</span>
       </div>
       <ul className="space-y-0.5 p-2">
         {team.players.map((p, i) => (
@@ -119,7 +126,7 @@ export function TeamCard({
       )}
       <div className="flex items-center gap-1.5 border-t border-line px-3 py-2 text-xs text-muted">
         <Shield size={14} strokeWidth={ICON_STROKE} aria-hidden />
-        {team.has_fixed_gk ? 'Goleiro fixo' : team.has_rotation_gk ? 'Revezamento no gol' : team.uses_shared_gk ? 'Goleiros da pelada' : team.uses_volunteer_gk ? 'Voluntário do time de fora' : 'Sem goleiro'}
+        {team.has_fixed_gk ? 'Gol: goleiro fixo do time' : team.has_rotation_gk ? 'Gol: o 6º jogador reveza' : team.uses_shared_gk ? 'Gol: goleiro da pelada (agarra para todos)' : team.uses_volunteer_gk ? 'Gol: alguém do time de fora' : 'Sem goleiro'}
         {footer}
       </div>
     </div>
