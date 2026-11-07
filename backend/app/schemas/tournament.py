@@ -130,6 +130,11 @@ class TournamentOut(BaseModel):
     finished_at: datetime | None
 
 
+class AddMatchIn(BaseModel):
+    # Pelada normal criada sem internet: número da partida esperado. Reenviar não cria outra (idempotente).
+    expected_seq: int | None = Field(default=None, ge=1, le=500)
+
+
 class MatchResultIn(BaseModel):
     home_score: int = Field(ge=0, le=99)
     away_score: int = Field(ge=0, le=99)
@@ -139,6 +144,10 @@ class MatchResultIn(BaseModel):
     started_at: datetime | None = None  # 1º "iniciar"
     ended_at: datetime | None = None  # "finalizar"
     played_seconds: int | None = Field(default=None, ge=0, le=6 * 3600)  # tempo de bola rolando (sem pausas)
+    # Resultado lançado sem internet: os times que o celular achava que jogavam. Se o servidor calcula outros (mata-mata
+    # que dependia de desempate), recusa com 409 em vez de gravar o placar no jogo errado.
+    expected_home_team_id: int | None = None
+    expected_away_team_id: int | None = None
 
     @model_validator(mode="after")
     def penalties_together(self):

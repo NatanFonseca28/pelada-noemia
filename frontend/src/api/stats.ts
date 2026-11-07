@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, json } from './client'
 import { usePendingOps } from '@/hooks/useSheetQueue'
 import { enqueue, isRetryable, withPending } from '@/lib/offlineQueue'
@@ -22,6 +22,25 @@ export function usePlayerProfile(id: number) {
 
 export function useTournamentSummary(id: number) {
   return useQuery({ queryKey: ['tournament', id, 'summary'], queryFn: () => api<TournamentSummary>(`/tournaments/${id}/summary`) })
+}
+
+/**
+ * "Pronto para offline": com internet, baixa a súmula de todas as partidas do campeonato para este celular.
+ * Devolve se todas já estão guardadas e quando foi a última atualização.
+ */
+export function useOfflineReady(matchIds: number[]) {
+  const queries = useQueries({
+    queries: matchIds.map((id) => ({
+      queryKey: ['sheet', id],
+      queryFn: () => api<MatchSheet>(`/matches/${id}/events`),
+      staleTime: 60_000,
+      enabled: id > 0, // partidas criadas sem internet (id provisório) ainda não existem no servidor
+    })),
+  })
+  const real = queries.filter((_, i) => matchIds[i] > 0)
+  const ready = real.length > 0 && real.every((q) => q.data !== undefined)
+  const updatedAt = real.length ? Math.min(...real.map((q) => q.dataUpdatedAt || Infinity)) : 0
+  return { ready, updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0 }
 }
 
 export function useMatchSheet(matchId: number) {

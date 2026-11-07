@@ -2,11 +2,30 @@
   "name": "Pelada de Quarta — Noemia Cup",
   "short_name": "Noemia Cup",
   "icons": [
-    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "start_url": "/",
   "theme_color": "#0f1714",
   "background_color": "#0f1714",
-  "display": "standalone"
+  "display": "standalone",
+  "id": "/",
+  "scope": "/",
+  "description": "Pelada de quarta: times, súmula, financeiro e estatísticas.",
+  "lang": "pt-BR",
+  "orientation": "portrait"
 }

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, status
 
 from app.core.deps import AdminUser, CurrentUser, SessionDep, StaffUser
 from app.core.errors import NotFoundError
-from app.schemas.tournament import FormatsOut, MatchResultIn, TournamentCreate, TournamentOut
+from app.schemas.tournament import AddMatchIn, FormatsOut, MatchResultIn, TournamentCreate, TournamentOut
 from app.services.tournament_service import TournamentService
 
 router = APIRouter(tags=["Campeonato"])
@@ -44,10 +44,10 @@ async def delete(tournament_id: int, admin: AdminUser, session: SessionDep):
 
 
 @router.post("/tournaments/{tournament_id}/matches", response_model=TournamentOut)
-async def add_casual_match(tournament_id: int, staff: StaffUser, session: SessionDep):
-    """Pelada normal: cria a próxima partida."""
+async def add_casual_match(tournament_id: int, staff: StaffUser, session: SessionDep, data: AddMatchIn | None = None):
+    """Pelada normal: cria a próxima partida (com `expected_seq`, reenviar não cria outra)."""
     service = TournamentService(session)
-    await service.add_casual_match(tournament_id, staff)
+    await service.add_casual_match(tournament_id, staff, data.expected_seq if data else None)
     return await service.detail(tournament_id)
 
 

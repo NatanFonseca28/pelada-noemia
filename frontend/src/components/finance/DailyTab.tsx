@@ -14,7 +14,7 @@ const shift = (month: string, delta: number) => {
 }
 
 /** Diaristas: pagam a diária ANTES do jogo, por rodada (mensalistas ficam na grade mensal). */
-export function DailyTab() {
+export function DailyTab({ dailyFee, onEditFee }: { dailyFee?: string | null; onEditFee?: () => void }) {
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const { data, isLoading, error } = useDailyOverview(month)
   const pay = usePayDaily()
@@ -42,6 +42,14 @@ export function DailyTab() {
           </div>
         )}
       </div>
+      {dailyFee != null && (
+        <p className="mb-2 text-sm">
+          Diária atual: <strong>{money(dailyFee)}</strong>
+          {onEditFee && (
+            <> · <button type="button" onClick={onEditFee} className="font-medium text-primary-ink underline">alterar</button></>
+          )}
+        </p>
+      )}
       <p className="mb-3 text-xs text-muted">
         Só diarista que joga na linha paga. Quem avisou que vai só agarrar não paga. As diárias pagas entram no caixa automaticamente.
       </p>

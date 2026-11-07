@@ -13,7 +13,6 @@ export class ApiError extends Error {
 
 let accessToken: string | null = null
 let onSessionLost: (() => void) | null = null
-let refreshing: Promise<TokenResponse | null> | null = null
 
 export const tokenStore = {
   get: () => accessToken,
@@ -25,20 +24,32 @@ export const tokenStore = {
   },
 }
 
+/** Resultado de renovar a sessão: `unreachable` = sem internet ou servidor dormindo (a sessão pode estar ótima). */
+export type RefreshOutcome = { status: 'ok'; data: TokenResponse } | { status: 'rejected' } | { status: 'unreachable' }
+
+let refreshingDetailed: Promise<RefreshOutcome> | null = null
+
 /** Tenta renovar o access token usando o cookie httpOnly de refresh (single-flight). */
-export function refreshSession(): Promise<TokenResponse | null> {
-  refreshing ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
-    .then(async (r) => {
-      if (!r.ok) return null
+export function refreshSessionDetailed(): Promise<RefreshOutcome> {
+  refreshingDetailed ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+    .then(async (r): Promise<RefreshOutcome> => {
+      if (r.status >= 500) return { status: 'unreachable' } // Render acordando (502/503/504)
+      if (!r.ok) return { status: 'rejected' }
       const data = (await r.json()) as TokenResponse
       accessToken = data.access_token
-      return data
+      return { status: 'ok', data }
     })
-    .catch(() => null)
+    .catch((): RefreshOutcome => ({ status: 'unreachable' }))
     .finally(() => {
-      refreshing = null
+      refreshingDetailed = null
     })
-  return refreshing
+  return refreshingDetailed
+}
+
+/** Versão simples: null quando não foi possível renovar (por qualquer motivo). */
+export async function refreshSession(): Promise<TokenResponse | null> {
+  const r = await refreshSessionDetailed()
+  return r.status === 'ok' ? r.data : null
 }
 
 async function parseError(r: Response): Promise<ApiError> {
@@ -60,8 +71,10 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}, ret
   const r = await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
 
   if (r.status === 401 && retry && !path.startsWith('/auth/')) {
-    const refreshed = await refreshSession()
-    if (refreshed) return api<T>(path, init, false)
+    const refreshed = await refreshSessionDetailed()
+    if (refreshed.status === 'ok') return api<T>(path, init, false)
+    // sem internet / servidor dormindo: NÃO é sessão perdida. Erro "tentar depois" (a fila de ações reenvia).
+    if (refreshed.status === 'unreachable') throw new TypeError('Sem conexão com o servidor')
     accessToken = null
     onSessionLost?.()
   }

@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, extract, func, select
+from sqlalchemy import case, extract, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
@@ -23,7 +23,7 @@ from app.models.audit import AuditLog
 from app.models.enums import PlayerType
 from app.models.finance import CashEntry, CashKind, CollectionItem, FinanceCollection, MonthlyFee
 from app.models.player import Player
-from app.models.round import Attendance, AttendanceStatus, Round
+from app.models.round import Attendance, AttendanceStatus, Round, RoundStatus
 from app.models.user import User
 from app.repositories.settings_repo import SettingsRepository
 from app.schemas.finance import (
@@ -78,10 +78,20 @@ class FinanceService:
     async def update_config(self, data: FinanceConfig, actor: User) -> FinanceConfig:
         current = await self.settings.get_current()
         before = FinanceConfig.model_validate(current).model_dump(mode="json")
+        old_daily = current.daily_fee
         for key, value in data.model_dump().items():
             if value is not None or key == "finance_opening_month":  # a diária ausente mantém o valor
                 setattr(current, key, value)
         out = FinanceConfig.model_validate(current)
+        if out.daily_fee is not None and out.daily_fee != old_daily:
+            # diárias ainda não pagas de rodadas abertas passam a valer o novo valor (as pagas não mudam)
+            open_rounds = select(Round.id).where(Round.status.in_([RoundStatus.ABERTA, RoundStatus.FECHADA]))
+            await self.session.execute(
+                update(Attendance)
+                .where(Attendance.paid_at.is_(None), Attendance.fee_amount.is_not(None),
+                       Attendance.round_id.in_(open_rounds))
+                .values(fee_amount=out.daily_fee)
+            )
         await audit_service.record(
             self.session, user_id=actor.id, action="UPDATE", entity="finance_config", entity_id=1,
             before=before, after=out.model_dump(mode="json"),

@@ -973,7 +973,7 @@ export function FinancePage() {
           </>
         ) : <EmptyState>Nenhuma mensalidade. Importe a planilha na aba “Importar / Config.”.</EmptyState>
       ) : tab === 'diaristas' ? (
-        <DailyTab />
+        <DailyTab dailyFee={data.config.daily_fee} onEditFee={() => setTab('config')} />
       ) : tab === 'caixa' ? (
         <CashTab year={year} />
       ) : tab === 'cobrancas' ? (

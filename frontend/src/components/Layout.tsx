@@ -1,3 +1,4 @@
+import { SyncBanner } from '@/components/SyncBanner'
 import { Suspense, useEffect, useState } from 'react'
 import {
   ArrowDownToLine,
@@ -240,6 +241,7 @@ export function Layout() {
         </div>
       )}
 
+      <SyncBanner />
       <main id="conteudo" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-6xl px-4 pb-28 pt-5 outline-none sm:px-6 lg:pb-10 lg:pt-8">
         {/* key por rota: fade + subida curta a cada troca de tela */}
         <div key={pathname} className="anim-page">

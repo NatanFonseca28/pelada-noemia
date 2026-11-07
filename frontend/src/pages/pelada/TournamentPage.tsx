@@ -3,7 +3,7 @@ import { ArrowLeftRight, ClipboardList, Flag, Pencil, Plus, RotateCcw, Settings2
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { useRounds } from '@/api/rounds'
-import { useTournamentSummary } from '@/api/stats'
+import { useOfflineReady, useTournamentSummary } from '@/api/stats'
 import { useTournament, useTournamentActions } from '@/api/tournaments'
 import type { MatchItem, Tournament } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
@@ -12,6 +12,7 @@ import { GoalkeeperNote, KickoffNote } from '@/components/KickoffNote'
 import { MatchSheetPanel } from '@/components/MatchSheetPanel'
 import { ShareButton } from '@/components/ShareButton'
 import { useConfirm } from '@/contexts/feedback'
+import { useOnline } from '@/hooks/useSheetQueue'
 import { formatClock, unfinishStopwatch, useStopwatch } from '@/hooks/useStopwatch'
 import { matchDuration } from '@/lib/matchTime'
 import { resultText } from '@/lib/share'
@@ -273,6 +274,7 @@ function TournamentView({ t }: { t: Tournament }) {
 
   return (
     <>
+      <OfflineReadyChip matchIds={t.matches.map((m) => m.id)} />
       <PageHeader
         title={casual ? 'Pelada normal' : 'Campeonato'}
         subtitle={`${formatDate(t.round_date)} — ${t.format_name}`}
@@ -401,11 +403,23 @@ function TournamentView({ t }: { t: Tournament }) {
   )
 }
 
+/** "Pronto para jogar offline": a súmula de todas as partidas está guardada neste celular. */
+function OfflineReadyChip({ matchIds }: { matchIds: number[] }) {
+  const online = useOnline()
+  const { ready, updatedAt } = useOfflineReady(matchIds)
+  if (!ready && online) return <p className="mb-2 text-xs text-muted">Guardando as partidas neste celular para funcionar sem internet…</p>
+  if (!ready) return <p className="mb-2 text-xs text-danger-ink">Sem internet e as partidas ainda não foram guardadas neste celular.</p>
+  const at = new Date(updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return <p className="mb-2 text-xs text-primary-ink">✓ Pronto para jogar offline · atualizado às {at}</p>
+}
+
 export function TournamentPage() {
   const id = Number(useParams().id)
   const { data, isLoading, error } = useTournament(id)
   if (isLoading) return <Spinner />
-  if (error || !data) return <Alert>{errorText(error)}</Alert>
+  if (!data) {
+    return error ? <Alert>{errorText(error)}</Alert> : <Alert kind="info">Sem internet e este campeonato ainda não foi guardado neste celular. Abra uma vez com internet para usar offline.</Alert>
+  }
   return <TournamentView t={data} />
 }
 

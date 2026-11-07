@@ -75,6 +75,8 @@ export function ErrorState({ error, onRetry, title = 'Não foi possível carrega
 interface QueryLike {
   isLoading: boolean
   error: unknown
+  /** com dados (do cache ou de antes), uma falha de atualização não esconde a tela (servidor acordando/sem internet) */
+  data?: unknown
   refetch?: () => unknown
 }
 
@@ -90,7 +92,7 @@ export function QueryState({ query, isEmpty, empty, skeleton, children }: {
   children: ReactNode
 }) {
   if (query.isLoading) return <>{skeleton ?? <SkeletonList />}</>
-  if (query.error) return <ErrorState error={query.error} onRetry={query.refetch ? () => query.refetch?.() : undefined} />
+  if (query.error && query.data === undefined) return <ErrorState error={query.error} onRetry={query.refetch ? () => query.refetch?.() : undefined} />
   if (isEmpty) return <>{empty ?? <EmptyState title="Nada por aqui ainda" />}</>
   return <>{children}</>
 }

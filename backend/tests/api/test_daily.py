@@ -145,3 +145,18 @@ async def test_resumo_do_ano_e_saldo_que_segue(client, admin_headers):
     nxt = (await client.get("/api/dashboard/year-summary", params={"year": 2027}, headers=admin_headers)).json()
     assert nxt["opening_balance"] == d["closing_balance"]
     assert (await client.get("/api/dashboard/year-summary", params={"year": 2025}, headers=admin_headers)).status_code == 422
+
+
+async def test_mudar_a_diaria_atualiza_as_nao_pagas_de_rodada_aberta(client, admin_headers):
+    cfg = {"monthly_fee": "50", "finance_opening_balance": "0", "finance_opening_month": None}
+    await client.put("/api/finance/config", json={**cfg, "daily_fee": "20"}, headers=admin_headers)
+    a = await player(client, admin_headers, "Pagou")
+    b = await player(client, admin_headers, "Nao pagou")
+    rid = await new_round(client, admin_headers, "2026-11-14")
+    await att(client, admin_headers, rid, a)
+    await att(client, admin_headers, rid, b)
+    await client.put(f"/api/rounds/{rid}/attendances/{a}/paid", json={"paid": True}, headers=admin_headers)
+    await client.put("/api/finance/config", json={**cfg, "daily_fee": "15"}, headers=admin_headers)
+    cur = {x["player_id"]: x for x in (await client.get(f"/api/rounds/{rid}", headers=admin_headers)).json()["attendances"]}
+    assert cur[a]["fee_amount"] == "20.00"  # já paga: mantém
+    assert cur[b]["fee_amount"] == "15.00"  # pendente: novo valor

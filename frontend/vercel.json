@@ -56,6 +56,19 @@
           "value": "public, max-age=31536000, immutable"
         }
       ]
+    },
+    {
+      "source": "/(sw\\.js|workbox-.*\\.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
     }
   ]
 }

@@ -388,6 +388,9 @@ export interface MatchItem {
   group: string | null
   home: TeamRef | null
   away: TeamRef | null
+  /** de onde vem o time ("A:1", "V:SF1"): usado para refazer o chaveamento sem internet */
+  home_source?: string | null
+  away_source?: string | null
   home_label: string
   away_label: string
   planned_seconds: number

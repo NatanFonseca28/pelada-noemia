@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, json } from './client'
+import { enqueue, isRetryable } from '@/lib/offlineQueue'
 import type { DrawPreview, RoundDetail, RoundSummary, TeamRole } from './types'
 
 export function useRounds() {
@@ -48,7 +49,19 @@ function useRoundAction<V>(roundId: number, fn: (vars: V) => Promise<RoundDetail
   })
 }
 
+/** Aplica a marcação da chamada no cache da rodada (enquanto a ação não chega ao servidor). */
+function markCheckin(
+  qc: ReturnType<typeof useQueryClient>,
+  roundId: number,
+  pick: (a: RoundDetail['attendances'][number]) => 'PRESENTE' | 'FALTOU' | null | undefined,
+): RoundDetail {
+  const cur = qc.getQueryData<RoundDetail>(['rounds', roundId])
+  if (!cur) throw new TypeError('Sem dados da rodada neste celular')
+  return { ...cur, attendances: cur.attendances.map((a) => { const v = pick(a); return v === undefined ? a : { ...a, checkin: v } }) }
+}
+
 export function useRoundActions(roundId: number) {
+  const qc = useQueryClient()
   const base = `/rounds/${roundId}`
   return {
     status: useRoundAction(roundId, (action: 'open' | 'close' | 'lock' | 'unlock') =>
@@ -66,10 +79,27 @@ export function useRoundActions(roundId: number) {
     draw: useRoundAction(roundId, (body: { num_teams?: number; seed?: number; allow_short_team?: boolean; competition?: string | null }) =>
       api<RoundDetail>(`${base}/draw`, { method: 'POST', body: json(body) }),
     ),
-    checkin: useRoundAction(roundId, ({ playerId, status }: { playerId: number; status: 'PRESENTE' | 'FALTOU' | null }) =>
-      api<RoundDetail>(`${base}/checkin/${playerId}`, { method: 'PUT', body: json({ status }) }),
-    ),
-    allPresent: useRoundAction(roundId, () => api<RoundDetail>(`${base}/checkin/all-present`, { method: 'POST' })),
+    // Chamada sem internet: marca no celular na hora e envia quando der (mesma lógica da súmula)
+    checkin: useRoundAction(roundId, async ({ playerId, status }: { playerId: number; status: 'PRESENTE' | 'FALTOU' | null }) => {
+      try {
+        if (!navigator.onLine) throw new TypeError('offline')
+        return await api<RoundDetail>(`${base}/checkin/${playerId}`, { method: 'PUT', body: json({ status }) })
+      } catch (err) {
+        if (!isRetryable(err)) throw err
+        enqueue({ kind: 'checkin', roundId, playerId, status, queuedAt: Date.now() })
+        return markCheckin(qc, roundId, (a) => (a.player_id === playerId ? status : undefined))
+      }
+    }),
+    allPresent: useRoundAction(roundId, async () => {
+      try {
+        if (!navigator.onLine) throw new TypeError('offline')
+        return await api<RoundDetail>(`${base}/checkin/all-present`, { method: 'POST' })
+      } catch (err) {
+        if (!isRetryable(err)) throw err
+        enqueue({ kind: 'checkin_all', roundId, queuedAt: Date.now() })
+        return markCheckin(qc, roundId, (a) => (a.checkin ? undefined : 'PRESENTE'))
+      }
+    }),
     move: useRoundAction(roundId, (body: { player_id: number; team_id: number | null; role?: TeamRole }) =>
       api<RoundDetail>(`${base}/move`, { method: 'POST', body: json(body) }),
     ),

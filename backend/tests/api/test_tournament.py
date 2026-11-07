@@ -207,3 +207,41 @@ async def test_quem_comeca_com_a_bola(client, admin_headers):
     t = (await client.get(f"/api/tournaments/{t['id']}", headers=admin_headers)).json()
     final = next(m for m in t["matches"] if m["stage"] == "FINAL")
     assert final["kickoff_team_id"] == ranking[0]  # 1º colocado sempre sai na final
+
+
+# ---------- lançamentos feitos sem internet (idempotência e conflito) ----------
+
+async def _casual(client, admin_headers):
+    from tests.api.test_rounds import make_players, new_round
+
+    ids = await make_players(client, admin_headers, 10, 2)
+    rid = await new_round(client, admin_headers, "2026-11-21")
+    for pid in ids:
+        await client.put(f"/api/rounds/{rid}/attendances/{pid}", json={"confirmed": True}, headers=admin_headers)
+    await client.post(f"/api/rounds/{rid}/draw", json={}, headers=admin_headers)
+    await client.post(f"/api/rounds/{rid}/lock", headers=admin_headers)
+    r = await client.post(f"/api/rounds/{rid}/tournament", json={"format_code": "PELADA_NORMAL", "legs": 1,
+                                                                 "final_weight": "1"}, headers=admin_headers)
+    assert r.status_code in (200, 201), r.text
+    return r.json()
+
+
+async def test_proxima_partida_reenviada_nao_duplica(client, admin_headers):
+    t = await _casual(client, admin_headers)
+    m1 = t["matches"][0]
+    r = await client.post(f"/api/matches/{m1['id']}/result", json={"home_score": 2, "away_score": 1}, headers=admin_headers)
+    assert r.status_code == 200
+    nxt = await client.post(f"/api/tournaments/{t['id']}/matches", json={"expected_seq": 2}, headers=admin_headers)
+    assert nxt.status_code == 200 and len(nxt.json()["matches"]) == 2
+    again = await client.post(f"/api/tournaments/{t['id']}/matches", json={"expected_seq": 2}, headers=admin_headers)
+    assert again.status_code == 200 and len(again.json()["matches"]) == 2  # reenvio: não cria a 3ª
+
+
+async def test_resultado_com_times_divergentes_e_recusado(client, admin_headers):
+    t = await _casual(client, admin_headers)
+    m = t["matches"][0]
+    ok = {"home_score": 1, "away_score": 0, "expected_home_team_id": m["home"]["id"], "expected_away_team_id": m["away"]["id"]}
+    assert (await client.post(f"/api/matches/{m['id']}/result", json=ok, headers=admin_headers)).status_code == 200
+    bad = {**ok, "expected_home_team_id": m["away"]["id"]}
+    r = await client.post(f"/api/matches/{m['id']}/result", json=bad, headers=admin_headers)
+    assert r.status_code == 409

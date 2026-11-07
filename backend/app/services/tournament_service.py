@@ -185,11 +185,15 @@ class TournamentService:
             leg=1, status=MatchStatus.AGENDADA, elapsed_before_pause=0, home_score=0, away_score=0, version=1,
         )
 
-    async def add_casual_match(self, tournament_id: int, actor: User) -> None:
+    async def add_casual_match(self, tournament_id: int, actor: User, expected_seq: int | None = None) -> None:
         t = await self._tournament(tournament_id)
         await ensure_round_open(self.session, t.round_id, actor)
         if t.format_code != FormatCode.PELADA_NORMAL:
             raise ValidationError("Só a pelada normal permite adicionar partidas")
+        if expected_seq is not None and await self.session.scalar(
+            select(Match.id).where(Match.tournament_id == t.id, Match.seq >= expected_seq).limit(1)
+        ):
+            return  # reenvio de uma partida criada sem internet que já existe: nada a fazer
         if t.status == TournamentStatus.ENCERRADO:
             raise ValidationError("Pelada encerrada")
         matches = await self._matches(t.id)
@@ -232,6 +236,10 @@ class TournamentService:
         await ensure_round_open(self.session, t.round_id, actor)
         if m.home_team_id is None or m.away_team_id is None:
             raise ValidationError("Os times desta partida ainda não estão definidos")
+        if (data.expected_home_team_id is not None and data.expected_home_team_id != m.home_team_id) or (
+            data.expected_away_team_id is not None and data.expected_away_team_id != m.away_team_id
+        ):
+            raise ConflictError("Os times desta partida mudaram no servidor: o resultado lançado sem internet não foi aplicado")
         await self.ensure_no_finished_dependents(t, m)
         is_ko = m.stage in (Stage.SEMIFINAL, Stage.FINAL)
         before = self._score_snapshot(m)
