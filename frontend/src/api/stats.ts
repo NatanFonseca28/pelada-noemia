@@ -1,16 +1,20 @@
 import { useMemo } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, json } from './client'
-import { usePendingOps } from '@/hooks/useSheetQueue'
-import { enqueue, isRetryable, withPending } from '@/lib/offlineQueue'
+import { usePendingOps, usePendingOpsAll } from '@/hooks/useSheetQueue'
+import { enqueue, isRetryable, withPending, withPendingStats } from '@/lib/offlineQueue'
 import { uuid } from '@/lib/uuid'
 import type { EventType, MatchSheet, PlayerStats, RoundHistory, TournamentSummary } from './types'
 
 export function usePlayerStats(year: number | null) {
-  return useQuery({
+  const q = useQuery({
     queryKey: ['stats', 'players', year ?? 'all'],
     queryFn: () => api<PlayerStats[]>(`/stats/players${year ? `?year=${year}` : ''}`),
   })
+  // gols, assistências e cartões lançados sem internet já contam no ranking deste celular
+  const pending = usePendingOpsAll()
+  const data = useMemo(() => (q.data ? withPendingStats(q.data, pending) : q.data), [q.data, pending])
+  return { ...q, data }
 }
 
 export function usePlayerProfile(id: number) {

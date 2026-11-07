@@ -106,3 +106,20 @@ describe('pelada normal sem internet', () => {
     expect(t.status).toBe('ENCERRADO')
   })
 })
+
+describe('lances guardados sem internet', () => {
+  it('somam no placar da partida em andamento e nos rankings', async () => {
+    const { withPendingTournament, withPendingStats } = await import('@/lib/offlineQueue')
+    const t = repescagem()
+    const add = (type: 'GOL' | 'GOL_CONTRA' | 'AMARELO', team_id: number, player_id: number, assist?: number) =>
+      ({ kind: 'add', matchId: 1, queuedAt: 0, body: { client_event_id: `${type}${player_id}`, type, team_id, player_id, assist_player_id: assist ?? null } }) as const
+    const out = withPendingTournament(t, [add('GOL', 1, 10, 11), add('GOL_CONTRA', 1, 12)]) // T1 faz 1; gol contra de T1 vale p/ T2
+    expect([out.matches[0].home_score, out.matches[0].away_score]).toEqual([1, 1])
+    const rows = withPendingStats(
+      [{ player_id: 10, goals: 2, own_goals: 0, assists: 0, yellows: 0, reds: 0 }, { player_id: 11, goals: 0, own_goals: 0, assists: 3, yellows: 0, reds: 0 }],
+      [add('GOL', 1, 10, 11), add('AMARELO', 1, 10)],
+    )
+    expect(rows[0]).toMatchObject({ goals: 3, yellows: 1 })
+    expect(rows[1]).toMatchObject({ assists: 4 })
+  })
+})

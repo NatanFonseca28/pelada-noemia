@@ -26,13 +26,18 @@ export function usePendingOps(matchId: number): SheetOp[] {
 }
 
 /** Ações guardadas deste campeonato (resultados, reaberturas, partidas novas). */
-export function usePendingTournamentOps(tournamentId: number | undefined): SheetOp[] {
+export function usePendingTournamentOps(tournamentId: number | undefined, matchIds: number[] = []): SheetOp[] {
   const all = useRawQueue()
+  const key = matchIds.join(',')
   return useMemo(
-    () => all.filter((o) => 'tournamentId' in o && o.tournamentId === tournamentId),
-    [all, tournamentId],
+    () => all.filter((o) => ('tournamentId' in o && o.tournamentId === tournamentId) || (o.kind === 'add' && matchIds.includes(o.matchId))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, tournamentId, key],
   )
 }
+
+/** Todas as ações guardadas (para somar nos rankings). */
+export const usePendingOpsAll = useRawQueue
 
 /** Quantas ações aguardam envio (faixa do topo). */
 export const usePendingCount = () => useRawQueue().length

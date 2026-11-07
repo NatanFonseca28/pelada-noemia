@@ -182,6 +182,15 @@ export const backupJson = () => JSON.stringify({ exportedAt: new Date().toISOStr
 export function withPendingTournament(t: Tournament, ops: SheetOp[]): Tournament {
   let out = t
   for (const o of ops) {
+    // gols guardados contam no placar da partida em andamento (a partida encerrada usa o placar do resultado)
+    if (o.kind === 'add' && (o.body.type === 'GOL' || o.body.type === 'GOL_CONTRA')) {
+      const m = out.matches.find((x) => x.id === o.matchId)
+      if (m && m.status !== 'ENCERRADA') {
+        const forHome = (o.body.team_id === m.home?.id) === (o.body.type === 'GOL')
+        out = { ...out, matches: out.matches.map((x) => x.id !== m.id ? x : forHome ? { ...x, home_score: x.home_score + 1 } : { ...x, away_score: x.away_score + 1 }) }
+      }
+      continue
+    }
     if (!('tournamentId' in o) || o.tournamentId !== t.id) continue
     try {
       if (o.kind === 'result') out = applyResult(out, o.matchId, o.body)
@@ -197,3 +206,32 @@ export function withPendingTournament(t: Tournament, ops: SheetOp[]): Tournament
 
 export const tournamentOps = (ops: SheetOp[], tournamentId: number) =>
   ops.filter((o) => 'tournamentId' in o && o.tournamentId === tournamentId)
+
+/** Ranking de jogadores com os lances guardados neste celular (gol, assistência e cartões que ainda não subiram). */
+export function withPendingStats<T extends { player_id: number; goals: number; own_goals: number; assists: number; yellows: number; reds: number }>(
+  rows: T[],
+  ops: SheetOp[],
+): T[] {
+  const adds = ops.filter((o): o is Extract<SheetOp, { kind: 'add' }> => o.kind === 'add')
+  if (!adds.length) return rows
+  const bump = new Map<number, { goals: number; own_goals: number; assists: number; yellows: number; reds: number }>()
+  const at = (id: number) => {
+    let b = bump.get(id)
+    if (!b) bump.set(id, (b = { goals: 0, own_goals: 0, assists: 0, yellows: 0, reds: 0 }))
+    return b
+  }
+  for (const o of adds) {
+    const { type, player_id, assist_player_id } = o.body
+    if (player_id != null) {
+      if (type === 'GOL') at(player_id).goals++
+      else if (type === 'GOL_CONTRA') at(player_id).own_goals++
+      else if (type === 'AMARELO') at(player_id).yellows++
+      else if (type === 'VERMELHO') at(player_id).reds++
+    }
+    if (assist_player_id != null && type === 'GOL') at(assist_player_id).assists++
+  }
+  return rows.map((r) => {
+    const b = bump.get(r.player_id)
+    return b ? { ...r, goals: r.goals + b.goals, own_goals: r.own_goals + b.own_goals, assists: r.assists + b.assists, yellows: r.yellows + b.yellows, reds: r.reds + b.reds } : r
+  })
+}

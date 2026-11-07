@@ -20,6 +20,9 @@ registerOffline()
 
 const queryClient = new QueryClient({
   defaultOptions: {
+    // Sem internet o React Query PAUSA as mutações (a ação nunca rodava e o gol não era registrado). As nossas ações já
+    // tratam a falta de rede: guardam na fila e enviam depois.
+    mutations: { networkMode: 'always' },
     queries: {
       staleTime: 30_000,
       gcTime: MAX_AGE, // o cache precisa viver o bastante para ser guardado no IndexedDB

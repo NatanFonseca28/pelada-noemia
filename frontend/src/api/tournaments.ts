@@ -16,7 +16,7 @@ export function useFormats(roundId: number, finalWeight: string, enabled: boolea
 
 /** Campeonato do servidor + ações guardadas neste celular (resultado, reabertura, próxima partida…). */
 function usePendingMerged<T extends Tournament | null | undefined>(data: T): T {
-  const pending = usePendingTournamentOps(data ? data.id : undefined)
+  const pending = usePendingTournamentOps(data ? data.id : undefined, data ? data.matches.map((m) => m.id) : [])
   return useMemo(() => (data && pending.length ? (withPendingTournament(data, pending) as T) : data), [data, pending])
 }
 
