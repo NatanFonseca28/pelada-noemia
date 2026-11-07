@@ -213,6 +213,9 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
   const fee = Number(data.config.monthly_fee)
   const nowKey = currentMonthKey()
   const rows = data.rows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()) && (!delinquentOnly || r.delinquent))
+  // Diaristas e isentos não têm cobrança mensal: ficam recolhidos para não confundir com os mensalistas
+  const [expanded, setExpanded] = useState<Partial<Record<PlayerType, boolean>>>({})
+  const isOpen = (t: PlayerType) => t === 'MENSALISTA' || !!expanded[t] || q.trim() !== ''
 
   return (
     <>
@@ -260,14 +263,29 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
               {(i === 0 || rows[i - 1].type !== row.type) && (
                 <tr className={cx('border-b border-line', GROUP_STYLE[row.type].row)}>
                   <th colSpan={data.months.length + 2} scope="colgroup" className="sticky left-0 px-3 py-1.5 text-left text-sm">
-                    <span className={cx('inline-flex items-center gap-2 font-display text-base font-bold', GROUP_STYLE[row.type].text)}>
-                      <TypeDot type={row.type} />
-                      {GROUP_STYLE[row.type].title} ({rows.filter((r) => r.type === row.type).length})
-                    </span>
+                    {row.type === 'MENSALISTA' ? (
+                      <span className={cx('inline-flex items-center gap-2 font-display text-base font-bold', GROUP_STYLE[row.type].text)}>
+                        <TypeDot type={row.type} />
+                        {GROUP_STYLE[row.type].title} ({rows.filter((r) => r.type === row.type).length})
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded({ ...expanded, [row.type]: !expanded[row.type] })}
+                        aria-expanded={isOpen(row.type)}
+                        className={cx('inline-flex items-center gap-2 font-display text-base font-bold', GROUP_STYLE[row.type].text)}
+                      >
+                        <ChevronRight size={16} strokeWidth={ICON_STROKE} aria-hidden className={cx('transition-transform', isOpen(row.type) && 'rotate-90')} />
+                        <TypeDot type={row.type} />
+                        {GROUP_STYLE[row.type].title} ({rows.filter((r) => r.type === row.type).length})
+                        <span className="text-xs font-normal text-muted">{isOpen(row.type) ? 'recolher' : 'mostrar'}</span>
+                      </button>
+                    )}
                     {GROUP_STYLE[row.type].note && <span className="ml-2 text-xs font-normal text-muted">{GROUP_STYLE[row.type].note}</span>}
                   </th>
                 </tr>
               )}
+              {isOpen(row.type) && (
               <tr className="border-b border-line">
                 <td
                   className={cx('sticky left-0 z-10 max-w-[200px] border-l-4 bg-surface px-3 py-1.5 font-medium', GROUP_STYLE[row.type].border)}
@@ -302,6 +320,7 @@ function FeesGrid({ data, delinquentOnly, onDelinquentOnly }: { data: FinanceOve
                 })}
                 <td className="px-3 py-1.5 text-right font-medium tabular-nums">{money(row.total)}</td>
               </tr>
+              )}
               </Fragment>
             ))}
           </tbody>
